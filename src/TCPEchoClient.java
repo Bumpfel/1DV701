@@ -3,17 +3,16 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.net.SocketException;
 
 public class TCPEchoClient {
-//	public static final int BUFSIZE = 1024;
-	public static final int MYPORT= 0;
+	public static final int MYPORT = 0;
 	private static final int MAX_TCP_PACKET_SIZE = 65535;
-	public static final String MSG= "An Echo Message! An Echo Message! An Echo Message! An Echo Message! An Echo Message! An Echo Message! An Echo Message!";
-
+	public static String MSG = "An Echo Message! An Echo Message! An Echo Message! An Echo Message! An Echo Message! An Echo Message! An Echo Message!";
+	private static final int MSG_SIZE = 45;
+//	public static String MSG = "An Echo Message!";
+	
 	public static void main(String[] args) throws IOException {
 		try {
 			// handles program args
@@ -26,38 +25,38 @@ public class TCPEchoClient {
 			validateIP(destinationIP);
 			validateMsgTransferRate(msgTransferRate);
 			validatePacketSize(MSG.length());
+			
+			// Msg size
+			createPacket(MSG_SIZE);
 
-//			SocketAddress localBindPoint = new InetSocketAddress(MYPORT);
-//			SocketAddress remoteBindPoint = new InetSocketAddress(destinationIP, port);
-
-			byte[] buf = new byte[clientBufferSize];
 			if (args.length != 4) {
 				System.err.printf("usage: %s server_name port\n message_transfer_rate client_buffer_size", args[1]);
 				System.exit(1);
 			}
 
 			Socket socket = new Socket(destinationIP, port);
-//			Socket socket = new Socket();
-//			socket.bind(localBindPoint);
-//			socket.connect(remoteBindPoint, 1000);
-
+			
 			InputStream in = new DataInputStream(socket.getInputStream());
 			OutputStream out = new DataOutputStream(socket.getOutputStream());
 
 			for(int i = 0; i < msgTransferRate; i ++) {
 				out.write(MSG.getBytes()); // send as byte[]
 
+				int bytesReceived = 0;
 				String receivedString = new String();
+				System.out.println("# Msg length is " + MSG.length() + ", and buffer size is " + clientBufferSize);
 				do {
-					in.read(buf); // receive echo
-					receivedString += new String(buf).trim();
-
+					byte[] buf = new byte[clientBufferSize];
+					bytesReceived = in.read(buf); // receive echo
+					receivedString += new String(buf, 0, bytesReceived);
+//					System.out.print(new String(buf)); // DEBUG -------------------------------------------------------------------------------------
+//					System.out.println(" - received " + bytesReceived + " bytes"); // DEBUG ---------------------------------------------------------
 				}
 				while(receivedString.length() < MSG.length());
 				
 				System.out.println(MSG.getBytes().length + " bytes sent and " + receivedString.length() + " bytes received");
 				if (receivedString.compareTo(MSG) != 0)
-					System.out.println("Sent and received msg not equal!: ");
+					System.out.println("Sent and received msg not equal!");
 
 				int sleepTime = 1000;
 				if(msgTransferRate > 0)
@@ -107,5 +106,10 @@ public class TCPEchoClient {
 				throw new IllegalArgumentException(MSG);
 			}
 		}
+	}
+	
+	private static void createPacket(int size) {
+		String text = "The first assignment is dedicated to UDP/TCP socket programming with Java and testing your programs in a virtual networking environment. You will use provided starter code for UDP echo server and client, improve it and test your implementation in a setting where server and client programs are executed on different machines connected in a network.";
+		MSG = text.substring(0, size);
 	}
 }

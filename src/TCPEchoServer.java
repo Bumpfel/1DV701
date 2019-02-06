@@ -7,11 +7,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 public class TCPEchoServer {
-//	public static final int BUFSIZE= 1024;
+	//	public static final int BUFSIZE= 1024;
 	public static final int MYPORT= 4951;
 
 	public static void main(String[] args) throws IOException {
-//		byte[] buf= new byte[BUFSIZE];
+		//		byte[] buf= new byte[BUFSIZE];
 
 		System.out.println("Server started");
 
@@ -45,17 +45,22 @@ class Client extends Thread {
 		}
 	}
 
+	@Override
 	public void run() {
 		try {
-			String received;
+			int bytesReceived;
+			String receivedString = new String();
+			byte[] buf = new byte[BUFSIZE];
 			do {
-				byte[] buf = new byte[BUFSIZE];
-				in.read(buf); // receive
-				received = new String(buf).trim(); // make received byte[] to string
-				out.write(buf); // echo back
-				System.out.println(received.length() + " bytes received over TCP, sent from " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
+				bytesReceived = in.read(buf); // stores input stream to buf array and count bytes received. consumes input stream
+				if(bytesReceived > 0) {
+					receivedString = new String(buf, 0, bytesReceived); // make received byte[] to string
+					out.write(receivedString.getBytes()); // send back (echo)
+					System.out.println(receivedString.length() + " bytes received over TCP, sent from " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
+				}
 			}
-			while(!received.isEmpty());
+			while(bytesReceived > 0);
+
 			System.out.println();
 			socket.close();
 		}
