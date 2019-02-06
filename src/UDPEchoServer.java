@@ -5,28 +5,28 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 public class UDPEchoServer {
-	public static final int BUFSIZE= 1024;
-	public static final int MYPORT= 4950;
+	public static final int BUFSIZE = 1024;
+	public static final int MYPORT = 4950;
 
 	public static void main(String[] args) throws IOException {
-		byte[] buf= new byte[BUFSIZE];
+		byte[] buf = new byte[BUFSIZE];
 
 		System.out.println("Server started");
 		/* Create socket */
-		DatagramSocket socket= new DatagramSocket(null);
+		DatagramSocket socket = new DatagramSocket(null);
 
 		/* Create local bind point */
-		SocketAddress localBindPoint= new InetSocketAddress(MYPORT);
+		SocketAddress localBindPoint = new InetSocketAddress(MYPORT);
 		socket.bind(localBindPoint);
 		while (true) {
 			/* Create datagram packet for receiving message */
-			DatagramPacket receivePacket= new DatagramPacket(buf, buf.length);
+			DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
 
 			/* Receiving message */
 			socket.receive(receivePacket);
 
 			/* Create datagram packet for sending message */
-			DatagramPacket sendPacket=
+			DatagramPacket sendPacket =
 					new DatagramPacket(receivePacket.getData(),
 							receivePacket.getLength(),
 							receivePacket.getAddress(),

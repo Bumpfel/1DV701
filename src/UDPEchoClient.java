@@ -93,7 +93,6 @@ public class UDPEchoClient {
 			throw new IllegalArgumentException("Message transfer rate cannot be less than 0");
 	}
 
-
 	private static void validatePacketSize(int packetSz) {
 		if(packetSz > MAX_UDP_PACKET_SIZE)
 			throw new IllegalArgumentException("Maximum UDP packet size exceeded");

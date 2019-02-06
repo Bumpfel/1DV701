@@ -1,4 +1,8 @@
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -7,7 +11,9 @@ import java.net.SocketException;
 public class TCPEchoClient {
 	public static final int BUFSIZE= 1024;
 	public static final int MYPORT= 0;
+	private static final int MAX_TCP_PACKET_SIZE = 65535;
 	public static final String MSG= "An Echo Message!";
+	private static final int RUN_TIME = 1000;
 	
 	public static void main(String[] args) throws IOException, InterruptedException {
 		try {
@@ -17,7 +23,6 @@ public class TCPEchoClient {
 			int msgTransferRate = Integer.valueOf(args[2]); // messages per second
 			int clientBufferSize = Integer.valueOf(args[3]); // bytes
 			
-			
 			// check validity of program args
 			validateIP(destinationIP);
 			validateMsgTransferRate(msgTransferRate);
@@ -26,18 +31,33 @@ public class TCPEchoClient {
 			SocketAddress localBindPoint = new InetSocketAddress(MYPORT);
 			SocketAddress remoteBindPoint = new InetSocketAddress(destinationIP, port);
 
-			byte[] buf= new byte[clientBufferSize];
+			byte[] buf = new byte[clientBufferSize];
 			if (args.length != 4) {
 				System.err.printf("usage: %s server_name port\n message_transfer_rate client_buffer_size", args[1]);
 				System.exit(1);
 			}
 
-			Socket socket = new Socket(destinationIP, port);
+//			Socket socket = new Socket(destinationIP, port);
+			Socket socket = new Socket();
+			socket.bind(localBindPoint);
+			socket.connect(remoteBindPoint, 1000);
+
+			InputStream in = new DataInputStream(socket.getInputStream());
+			OutputStream out = new DataOutputStream(socket.getOutputStream());
+			
+			long timestamp = System.currentTimeMillis();
 			do {
+				out.write(MSG.getBytes());				
+				System.out.println(MSG.length() + " bytes sent"); // ------ must check received stuff and match the
 				
+				int sleepTime = 1000;
+				if(msgTransferRate > 0)
+					sleepTime /= msgTransferRate;
+				Thread.sleep(sleepTime);
 			}
-			while(true);
-//			socket.close();
+			while(timestamp + RUN_TIME > System.currentTimeMillis());
+						
+			socket.close();
 		}
 		catch(NumberFormatException e) {
 			System.err.println("Arguments in the wrong format");
@@ -57,8 +77,8 @@ public class TCPEchoClient {
 
 
 	private static void validatePacketSize(int packetSz) {
-		if(packetSz > MAX_UDP_PACKET_SIZE)
-			throw new IllegalArgumentException("Maximum UDP packet size exceeded");
+		if(packetSz > MAX_TCP_PACKET_SIZE)
+			throw new IllegalArgumentException("Maximum TCP packet size exceeded");
 	}
 	
 	private static void validateIP(String IP) throws IllegalArgumentException { // DEBUG IS ON ERR MESSAGES
