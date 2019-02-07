@@ -7,7 +7,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 
-public class UDPEchoClient {
+public class UDPEchoClient extends NetworkLayer {
 	public static final int MYPORT = 0;
 	private static final int MAX_UDP_PACKET_SIZE = 65507;
 	public static final String MSG = "An Echo Message! An Echo Message! An Echo Message! An Echo Message!";
@@ -20,7 +20,7 @@ public class UDPEchoClient {
 			int clientBufferSize = Integer.valueOf(args[3]); // bytes
 
 			validateMsgTransferRate(msgTransferRate);
-			validatePacketSize(MSG.length());
+			validatePacketSize(MSG.length(), MAX_UDP_PACKET_SIZE);
 
 			byte[] buf = new byte[clientBufferSize];
 			if (args.length != 4) {
@@ -76,35 +76,6 @@ public class UDPEchoClient {
 		}
 		catch(IllegalArgumentException | SocketException e) {
 			System.err.println(e.getMessage());
-		}
-	}
-
-	private static void validateMsgTransferRate(int transferRate) {	
-		if(transferRate < 0)
-			throw new IllegalArgumentException("Message transfer rate cannot be less than 0");
-	}
-
-	private static void validatePacketSize(int packetSz) {
-		if(packetSz > MAX_UDP_PACKET_SIZE)
-			throw new IllegalArgumentException("Maximum UDP packet size exceeded");
-	}
-
-	private static void validateIP(String IP) throws IllegalArgumentException {
-		final String MSG = "Invalid IP Address";
-
-		String[] IPGroups = IP.split("\\.");
-		if(IPGroups.length != 4)
-			throw new IllegalArgumentException(MSG);
-		for(int i = 0; i < 4; i ++) {
-			try {
-				int IPint = Integer.parseInt(IPGroups[i]);
-				if((IPint < 0 || IPint > 255) || (i == 3 && (IPint <= 0 || IPint >= 255))) {
-					throw new IllegalArgumentException(MSG);
-				}
-			}
-			catch(NumberFormatException e) {
-				throw new IllegalArgumentException(MSG);
-			}
 		}
 	}
 }
