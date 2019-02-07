@@ -1,3 +1,5 @@
+package Assignment1;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -43,7 +45,7 @@ public class UDPEchoClient {
 			DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
 
 			// loop for each message
-			for(int i = 0; i < msgTransferRate; i ++) {
+			for(int i = 0; i < msgTransferRate; i ++) {				
 				/* Send and receive message*/
 				socket.send(sendPacket);
 				socket.receive(receivePacket);

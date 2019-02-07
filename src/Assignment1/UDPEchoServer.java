@@ -1,3 +1,5 @@
+package Assignment1;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -34,9 +36,9 @@ public class UDPEchoServer {
 
 			/* Send message*/
 			socket.send(sendPacket);
-			System.out.printf("UDP echo request from %s", receivePacket.getAddress().getHostAddress() + ". " + receivePacket.getLength() + " bytes received and sent");
-			System.out.printf(" using port %d\n", receivePacket.getPort());
-			System.out.println();
+			System.out.print("UDP echo request from " + receivePacket.getAddress().getHostAddress() + ". " + receivePacket.getLength() + " bytes received and sent");
+			System.out.println(" using port " + receivePacket.getPort());
+//			socket.close();
 		}
 	} 
 }
