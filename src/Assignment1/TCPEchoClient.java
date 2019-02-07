@@ -9,32 +9,26 @@ import java.net.Socket;
 import java.net.SocketException;
 
 public class TCPEchoClient extends NetworkLayer {
-	public static final int MYPORT = 0;
 	private static final int MAX_TCP_PACKET_SIZE = 65535;
 	private static final int MSG_SIZE = 59;
-	private static final boolean VERBOSE_MODE = false; // prints information about every packet
 	
 	public static void main(String[] args) throws IOException {
+		// Create message of specific size
+		final String MSG = createPacket(MSG_SIZE);
+
 		try {
+			validateArgs(args, 4, "server_name port message_transfer_rate client_buffer_size", MSG, MAX_TCP_PACKET_SIZE);
+
 			// handles program args
 			String destinationIP = args[0];
 			int port = Integer.valueOf(args[1]);
 			int msgTransferRate = Integer.valueOf(args[2]); // messages per second
 			int clientBufferSize = Integer.valueOf(args[3]); // bytes
-
-			// Create message of specific size
-			final String MSG = createPacket(MSG_SIZE);
-			
-			// check validity of program args
-			validateIP(destinationIP);
-			validateMsgTransferRate(msgTransferRate);
-			validatePacketSize(MSG.length(), MAX_TCP_PACKET_SIZE);
-			validateMessageSize(MSG.length());
-
-			if (args.length != 4) {
-				System.err.println("Incorrect launch commands. Usage: server_name port message_transfer_rate client_buffer_size");
-				System.exit(1);
-			}
+					
+//			validateIP(destinationIP);
+//			validateMsgTransferRate(msgTransferRate);
+//			validatePacketSize(MSG.length(), MAX_TCP_PACKET_SIZE);
+//			validateMessageSize(MSG.length());
 
 			// Set up connection
 //			while(true) { // uncomment to run forever, using a new socket
@@ -64,7 +58,7 @@ public class TCPEchoClient extends NetworkLayer {
 				// Done
 				System.out.println("In total " + MSG.getBytes().length + " bytes sent and " + receivedString.getBytes().length + " bytes received");
 				if (receivedString.compareTo(MSG) != 0)
-					System.out.println("Sent and received msg not equal!");
+					System.err.println("Sent and received msg not equal!");
 
 				// Delay
 				int sleepTime = 1000;
@@ -75,14 +69,11 @@ public class TCPEchoClient extends NetworkLayer {
 				}
 				catch (InterruptedException e) {
 				}
-//			}
-			socket.close();
 			}
+			socket.close();
+//			}
 		}
-		catch(NumberFormatException e) { // failing to parse an argument as an integer
-			System.err.println("Arguments in the wrong format");
-		}
-		catch(IllegalArgumentException | SocketException e) {
+		catch(SocketException e) {
 			System.err.println(e.getMessage());
 		}
 	}

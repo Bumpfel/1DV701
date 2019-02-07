@@ -1,35 +1,39 @@
 package Assignment1;
 
-public class NetworkLayer {
-	protected static void validateMsgTransferRate(int transferRate) {	
-		if(transferRate < 0)
-			throw new IllegalArgumentException("Message transfer rate cannot be less than 0");
+public class NetworkLayer { //TODO remove static?
+	protected static final boolean VERBOSE_MODE = true; // prints information about every packet
+	
+	protected static void validateArgs(String[] args, int expectedArgs, String usage, String packet, int MAX_PACKET_SIZE) {
+		try {
+			if(args.length != expectedArgs)
+				throw new IllegalArgumentException(usage);
+			else if(Integer.parseInt(args[2]) < 0)
+				throw new IllegalArgumentException("Message transfer rate cannot be less than 0");
+			else if(packet.length() > MAX_PACKET_SIZE)
+				throw new IllegalArgumentException("Maximum TCP packet size exceeded");
+			else if(packet.length() == 0)
+				throw new IllegalArgumentException("Message cannot be empty");
+	
+			validateIP(args[0]);
+		}
+		catch(NumberFormatException e) {
+			System.err.println("Arguments in the wrong format");
+		}
+		catch(IllegalArgumentException e) {
+			System.err.println(e.getMessage());
+		}
 	}
 
-	protected static void validatePacketSize(int packetSz, final int MAX_PACKET_SIZE) {
-		if(packetSz > MAX_PACKET_SIZE)
-			throw new IllegalArgumentException("Maximum TCP packet size exceeded");
-	}
-
-	protected static void validateMessageSize(int msgSz) {
-		if(msgSz == 0)
-			throw new IllegalArgumentException("Message cannot be empty");
-	}
-
-	protected static void validateIP(String IP) throws IllegalArgumentException {
+	private static void validateIP(String IPAddress) throws IllegalArgumentException {
 		final String MSG = "Invalid IP Address";
 
-		String[] IPGroups = IP.split("\\.");
-		if(IPGroups.length != 4)
+		String[] Segments = IPAddress.split("\\.");
+		if(Segments.length != 4)
 			throw new IllegalArgumentException(MSG);
+		
 		for(int i = 0; i < 4; i ++) {
-			try {
-				int IPint = Integer.parseInt(IPGroups[i]);
-				if((IPint < 0 || IPint > 255) || (i == 3 && (IPint <= 0 || IPint >= 255))) {
-					throw new IllegalArgumentException(MSG);
-				}
-			}
-			catch(NumberFormatException e) {
+			int IPSegment = Integer.parseInt(Segments[i]);
+			if((IPSegment < 0 || IPSegment > 255) || (i == 3 && (IPSegment <= 0 || IPSegment >= 255))) {
 				throw new IllegalArgumentException(MSG);
 			}
 		}

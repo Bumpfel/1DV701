@@ -11,6 +11,7 @@ import java.net.Socket;
 
 public class TCPEchoServer {
 	public static final int MYPORT = 4951;
+	private static final boolean VERBOSE_MODE = true; // prints information about every packet (otherwise it will only print when a client has finished sending everything
 
 	public static void main(String[] args) throws IOException {
 		
@@ -20,7 +21,10 @@ public class TCPEchoServer {
 			int serverBufferSize = Integer.parseInt(args[0]);
 		
 			try(ServerSocket serverSocket = new ServerSocket(MYPORT)) {
-				System.out.println("Server started on port " + serverSocket.getLocalPort() + ". Buffer size is " + serverBufferSize + " bytes");
+				System.out.print("Server started on port " + serverSocket.getLocalPort() + ". ");
+				System.out.print("Buffer size is " + serverBufferSize + " bytes. ");
+				System.out.println("Verbose mode is " + (VERBOSE_MODE ? "on" : "off" + ". "));
+
 				while (true) {
 					Socket clientSocket = serverSocket.accept();
 	
