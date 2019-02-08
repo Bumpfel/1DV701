@@ -1,31 +1,32 @@
 package Assignment1;
 
 public abstract class NetworkLayer {
-	protected String destinationIP;
-	protected int destinationPort;
-	protected int msgTransferRate; // messages per second
-	protected int clientBufferSize; // bytes
+	protected final String DESTINATION_IP;
+	protected final int DESTINATION_PORT;
+	protected final int MSG_TRANSFER_RATE; // messages per second
+	protected final int CLIENT_BUFFER_SIZE; // bytes
 	protected final String MSG;
-	protected final int MAX_PACKET_SIZE;
 	
 	public NetworkLayer(String[] args, int msgSize, String type) {
 		MSG = createPacket(msgSize);
+		
+		validateArgs(args, MSG, type);
+		
+		DESTINATION_IP = args[0];
+		DESTINATION_PORT = Integer.valueOf(args[1]);
+		MSG_TRANSFER_RATE = Integer.valueOf(args[2]);
+		CLIENT_BUFFER_SIZE = Integer.valueOf(args[3]);
+	}
+	
+	protected void validateArgs(String[] args, String packet, String type) {
+		int expectedArgs = 4;
+		final int MAX_PACKET_SIZE;
+		
 		if(type.equals("UDP"))
 			MAX_PACKET_SIZE = 65507;
 		else 
-			MAX_PACKET_SIZE = 65535;
-		
-		validateArgs(args, MSG, MAX_PACKET_SIZE);
-		
-		destinationIP = args[0];
-		destinationPort = Integer.valueOf(args[1]);
-		msgTransferRate = Integer.valueOf(args[2]);
-		clientBufferSize = Integer.valueOf(args[3]);		
-		
-	}
-	
-	protected void validateArgs(String[] args, String packet, int MAX_PACKET_SIZE) {
-		int expectedArgs = 4;
+			MAX_PACKET_SIZE = 65535; // TCP
+
 		try {
 			if(args.length != expectedArgs)
 				throw new IllegalArgumentException("Incorrect launch commands.\nUsage: server_name port message_transfer_rate client_buffer_size");

@@ -23,7 +23,7 @@ public class UDPEchoServer {
 			socket.bind(localBindPoint);
 
 
-			while (true) {
+			while(true) {
 				/* Create datagram packet for receiving message */
 				DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
 
@@ -42,6 +42,7 @@ public class UDPEchoServer {
 				System.out.print("UDP echo request from " + receivePacket.getAddress().getHostAddress() + ". " + receivePacket.getLength() + " bytes received and sent");
 				System.out.println(" using port " + receivePacket.getPort());
 			}
+
 		}
 		catch(IOException e) {
 			System.out.println(e.getMessage());
