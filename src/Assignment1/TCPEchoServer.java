@@ -11,7 +11,7 @@ import java.net.SocketException;
 
 public class TCPEchoServer {
 	public static final int MYPORT = 4951;
-	private static final boolean VERBOSE_MODE = true; // if true, prints information about every packet segment
+	private static final boolean VERBOSE_MODE = false; // if true, prints information about every packet segment
 
 	public static void main(String[] args) {
 		try {

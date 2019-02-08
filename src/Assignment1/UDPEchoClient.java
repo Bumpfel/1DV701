@@ -8,43 +8,39 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 
 public class UDPEchoClient extends NetworkLayer {
-	public static final int MYPORT = 0;
-	private static final int MAX_UDP_PACKET_SIZE = 65507;
-	private static final int MSG_SIZE = 100;
+	private final int MYPORT = 0;
 
+	public UDPEchoClient(String[] args) {
+		super(args, 100, "UDP");
+	}
+	
 	public static void main(String[] args) {
-		// Create message of specific size
-		final String MSG = createPacket(MSG_SIZE);
+		UDPEchoClient udpClient = new UDPEchoClient(args);
 
-		validateArgs(args, MSG.getBytes(), MAX_UDP_PACKET_SIZE);
-
-		int msgTransferRate = Integer.valueOf(args[2]); // messages per second
-		int clientBufferSize = Integer.valueOf(args[3]); // bytes
-
-		byte[] buf = new byte[clientBufferSize];
+		byte[] buf = new byte[udpClient.clientBufferSize];
 
 		/* Create socket */
 		try(DatagramSocket socket = new DatagramSocket(null)) {
 
 			/* Create local endpoint using bind() */
-			SocketAddress localBindPoint = new InetSocketAddress(MYPORT);
+			SocketAddress localBindPoint = new InetSocketAddress(udpClient.MYPORT);
 			socket.bind(localBindPoint);
 
 			/* Create remote endpoint */
 			SocketAddress remoteBindPoint = new InetSocketAddress(args[0], Integer.valueOf(args[1]));
 
 			/* Create datagram packet for sending message */
-			DatagramPacket sendPacket = new DatagramPacket(MSG.getBytes(), MSG.length(), remoteBindPoint);
+			DatagramPacket sendPacket = new DatagramPacket(udpClient.MSG.getBytes(), udpClient.MSG.length(), remoteBindPoint);
 
 			/* Create datagram packet for receiving echoed message */
 			DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
 
-			System.out.println("Msg size is " + MSG.length() + ", and buffer size is " + clientBufferSize);
+			System.out.println("Msg size is " + udpClient.MSG.length() + ", and buffer size is " + udpClient.clientBufferSize);
 
 			long timestamp = System.currentTimeMillis();
 			// loop for each message
-			for(int i = 0; i < msgTransferRate; i ++) {
-				checkMaxTime(timestamp,i, msgTransferRate);
+			for(int i = 0; i < udpClient.msgTransferRate; i ++) {
+				udpClient.checkMaxTime(timestamp,i, udpClient.msgTransferRate);
 
 				/* Send and receive message*/
 				socket.send(sendPacket);
@@ -56,7 +52,7 @@ public class UDPEchoClient extends NetworkLayer {
 								receivePacket.getOffset(),
 								receivePacket.getLength());
 
-				validatePacketIntegrityAndPrintResults(MSG, receivedString);
+				udpClient.validatePacketIntegrityAndPrintResults(udpClient.MSG, receivedString);
 
 			}
 		}
