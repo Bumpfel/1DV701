@@ -1,26 +1,29 @@
 package Assignment1;
 
-public class NetworkLayer { //TODO remove static?
+public abstract class NetworkLayer { //TODO remove static?
 	protected static final boolean VERBOSE_MODE = true; // prints information about every packet
 	
-	protected static void validateArgs(String[] args, int expectedArgs, String usage, String packet, int MAX_PACKET_SIZE) {
+	protected static void validateArgs(String[] args, byte[] packet, int MAX_PACKET_SIZE) {
+		int expectedArgs = 4;
 		try {
 			if(args.length != expectedArgs)
-				throw new IllegalArgumentException(usage);
+				throw new IllegalArgumentException("Incorrect launch commands.\nUsage: server_name port message_transfer_rate client_buffer_size");
 			else if(Integer.parseInt(args[2]) < 0)
 				throw new IllegalArgumentException("Message transfer rate cannot be less than 0");
-			else if(packet.length() > MAX_PACKET_SIZE)
+			else if(packet.length > MAX_PACKET_SIZE)
 				throw new IllegalArgumentException("Maximum TCP packet size exceeded");
-			else if(packet.length() == 0)
+			else if(packet.length == 0)
 				throw new IllegalArgumentException("Message cannot be empty");
 	
 			validateIP(args[0]);
 		}
 		catch(NumberFormatException e) {
-			System.err.println("Arguments in the wrong format");
+			System.err.println("Program arguments in the wrong format");
+			System.exit(-1);
 		}
 		catch(IllegalArgumentException e) {
 			System.err.println(e.getMessage());
+			System.exit(-1);
 		}
 	}
 
@@ -43,4 +46,38 @@ public class NetworkLayer { //TODO remove static?
 		String text = "The first assignment is dedicated to UDP/TCP socket programming with Java and testing your programs in a virtual networking environment. You will use provided starter code for UDP echo server and client, improve it and test your implementation in a setting where server and client programs are executed on different machines connected in a network.";
 		return text.substring(0, size);
 	}
+	
+	protected static void validatePacketIntegrityAndPrintResults(String sentPacket, String receivedPacket) {
+		System.out.println("In total " + sentPacket.length() + " byte(s) sent and " + receivedPacket.length() + " byte(s) received");
+		
+		if (receivedPacket.compareTo(sentPacket) != 0) {
+			System.out.printf("Sent and received msg not equal!\n");
+			System.exit(-1);
+		}
+	}
+	
+	/**
+	 * Makes sure max time is not exceeded
+	 * @param timestamp
+	 * @param iteration
+	 * @param transferRate
+	 */
+	protected static void checkMaxTime(long timestamp, int iteration, int transferRate) {
+		final int MAX_DURATION = 1000;
+		if(System.currentTimeMillis() > timestamp + MAX_DURATION) {
+			System.err.println(transferRate - iteration + " messages was not sent");
+			System.exit(-1);
+		}
+	}
+//	protected static void delay(int transferRate) {
+//		int sleepTime = 1000;
+//		if(transferRate > 0)
+//			sleepTime = 1000 / transferRate;
+//		try {
+//			Thread.sleep(sleepTime);			
+//		}
+//		catch(InterruptedException e) {
+//		}
+//	}
+	
 }

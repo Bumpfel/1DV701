@@ -5,16 +5,15 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 
 public class TCPEchoServer {
 	public static final int MYPORT = 4951;
-	private static final boolean VERBOSE_MODE = true; // prints information about every packet (otherwise it will only print when a client has finished sending everything
+	private static final boolean VERBOSE_MODE = true; // if true, prints information about every packet segment
 
-	public static void main(String[] args) throws IOException {
-		
+	public static void main(String[] args) {
 		try {
 			if(args.length != 1)
 				throw new IllegalArgumentException("Incorrect launch commands. Usage: buffer_size");
@@ -36,7 +35,7 @@ public class TCPEchoServer {
 		catch(NumberFormatException e) {
 			System.out.println("Invalid argument format");
 		}
-		catch(IllegalArgumentException | BindException e) {
+		catch(IllegalArgumentException | IOException e) {
 			System.out.println(e.getMessage());
 		}
 	}
@@ -48,7 +47,7 @@ class ClientThread extends Thread {
 	private OutputStream out;
 	private Socket socket;
 	public int bufferSize;
-	private static final boolean VERBOSE_MODE = true; // prints information about every packet (otherwise it will only print when a client has finished sending everything
+	private static final boolean VERBOSE_MODE = false; // prints information about every packet (otherwise it will only print when a client has finished sending everything
 	
 	public ClientThread(Socket newSocket, int serverBufferSize) {
 		socket = newSocket;
@@ -71,13 +70,14 @@ class ClientThread extends Thread {
 			byte[] buf = new byte[bufferSize];
 
 			int offset = 0;
+			if(VERBOSE_MODE)
+				System.out.println("TCP echo request from " + socket.getInetAddress().toString().substring(1) + ". ");
 			while((bytesReceived = in.read(buf)) > 0) { // loops while input stream contains data. consumes input stream and stores it to buf array 
 				receivedString += new String(buf, 0, bytesReceived); // piece together the message
 				out.write(receivedString.getBytes(), offset, bytesReceived); // send back (echo)
 				offset += bytesReceived;
-				if(VERBOSE_MODE) {					
-					System.out.print("TCP echo request from " + socket.getInetAddress().toString().substring(1) + ". ");
-					System.out.println("Sent and received " + bytesReceived + " bytes using port " + socket.getPort());
+				if(VERBOSE_MODE) {
+					System.out.println(" Sent and received " + bytesReceived + " bytes using port " + socket.getPort());
 				}
 			}
 			if(!VERBOSE_MODE) {

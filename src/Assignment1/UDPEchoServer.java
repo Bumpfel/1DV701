@@ -7,38 +7,44 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 public class UDPEchoServer {
-	public static final int BUFSIZE = 1024;
+	public static final int BUFSIZE = 64;
 	public static final int MYPORT = 4950;
 
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) {
 		byte[] buf = new byte[BUFSIZE];
 
-		System.out.println("Server started");
-		/* Create socket */
-		DatagramSocket socket = new DatagramSocket(null);
+		try(DatagramSocket socket = new DatagramSocket(null)) {
+			/* Create socket */
+			System.out.print("Server started on port " + MYPORT + ". ");
+			System.out.println("Buffer size is " + buf.length + " bytes. ");
 
-		/* Create local bind point */
-		SocketAddress localBindPoint = new InetSocketAddress(MYPORT);
-		socket.bind(localBindPoint);
-		while (true) {
-			/* Create datagram packet for receiving message */
-			DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
+			/* Create local bind point */
+			SocketAddress localBindPoint = new InetSocketAddress(MYPORT);
+			socket.bind(localBindPoint);
 
-			/* Receiving message */
-			socket.receive(receivePacket);
 
-			/* Create datagram packet for sending message */
-			DatagramPacket sendPacket =
-					new DatagramPacket(receivePacket.getData(),
-							receivePacket.getLength(),
-							receivePacket.getAddress(),
-							receivePacket.getPort());
+			while (true) {
+				/* Create datagram packet for receiving message */
+				DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
 
-			/* Send message*/
-			socket.send(sendPacket);
-			System.out.print("UDP echo request from " + receivePacket.getAddress().getHostAddress() + ". " + receivePacket.getLength() + " bytes received and sent");
-			System.out.println(" using port " + receivePacket.getPort());
-//			socket.close();
+				/* Receiving message */
+				socket.receive(receivePacket);
+
+				/* Create datagram packet for sending message */
+				DatagramPacket sendPacket =
+						new DatagramPacket(receivePacket.getData(),
+								receivePacket.getLength(),
+								receivePacket.getAddress(),
+								receivePacket.getPort());
+
+				/* Send message*/
+				socket.send(sendPacket);
+				System.out.print("UDP echo request from " + receivePacket.getAddress().getHostAddress() + ". " + receivePacket.getLength() + " bytes received and sent");
+				System.out.println(" using port " + receivePacket.getPort());
+			}
 		}
-	} 
+		catch(IOException e) {
+			System.out.println(e.getMessage());
+		}
+	}
 }

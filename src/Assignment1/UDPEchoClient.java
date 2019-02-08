@@ -10,26 +10,21 @@ import java.net.SocketException;
 public class UDPEchoClient extends NetworkLayer {
 	public static final int MYPORT = 0;
 	private static final int MAX_UDP_PACKET_SIZE = 65507;
-	public static final String MSG = "An Echo Message! An Echo Message! An Echo Message! An Echo Message!";
+	private static final int MSG_SIZE = 100;
 
-	public static void main(String[] args) throws IOException, InterruptedException {
-		try {
-			validateIP(args[0]);
+	public static void main(String[] args) {
+		// Create message of specific size
+		final String MSG = createPacket(MSG_SIZE);
 
-			int msgTransferRate = Integer.valueOf(args[2]); // messages per second
-			int clientBufferSize = Integer.valueOf(args[3]); // bytes
+		validateArgs(args, MSG.getBytes(), MAX_UDP_PACKET_SIZE);
 
-			validateMsgTransferRate(msgTransferRate);
-			validatePacketSize(MSG.length(), MAX_UDP_PACKET_SIZE);
+		int msgTransferRate = Integer.valueOf(args[2]); // messages per second
+		int clientBufferSize = Integer.valueOf(args[3]); // bytes
 
-			byte[] buf = new byte[clientBufferSize];
-			if (args.length != 4) {
-				System.err.printf("usage: %s server_name port\n message_transfer_rate client_buffer_size", args[1]);
-				System.exit(1);
-			}
+		byte[] buf = new byte[clientBufferSize];
 
-			/* Create socket */
-			DatagramSocket socket = new DatagramSocket(null);
+		/* Create socket */
+		try(DatagramSocket socket = new DatagramSocket(null)) {
 
 			/* Create local endpoint using bind() */
 			SocketAddress localBindPoint = new InetSocketAddress(MYPORT);
@@ -44,8 +39,13 @@ public class UDPEchoClient extends NetworkLayer {
 			/* Create datagram packet for receiving echoed message */
 			DatagramPacket receivePacket = new DatagramPacket(buf, buf.length);
 
+			System.out.println("Msg size is " + MSG.length() + ", and buffer size is " + clientBufferSize);
+
+			long timestamp = System.currentTimeMillis();
 			// loop for each message
-			for(int i = 0; i < msgTransferRate; i ++) {				
+			for(int i = 0; i < msgTransferRate; i ++) {
+				checkMaxTime(timestamp,i, msgTransferRate);
+
 				/* Send and receive message*/
 				socket.send(sendPacket);
 				socket.receive(receivePacket);
@@ -56,25 +56,11 @@ public class UDPEchoClient extends NetworkLayer {
 								receivePacket.getOffset(),
 								receivePacket.getLength());
 
-//				System.out.printf("%d bytes sent and received\n", receivePacket.getLength());
-				System.out.println(MSG.getBytes().length + " bytes sent and " + receivedString.length() + " bytes received");
-				if (receivedString.compareTo(MSG) != 0) {
-					System.out.printf("Sent and received msg not equal!\n");
-//					break;
-				}
+				validatePacketIntegrityAndPrintResults(MSG, receivedString);
 
-				// Delay
-				int sleepTime = 1000;
-				if(msgTransferRate > 0)
-					sleepTime = 1000 / msgTransferRate;
-				Thread.sleep(sleepTime);
 			}
-			socket.close();
 		}
-		catch(NumberFormatException e) {
-			System.err.println("Arguments in the wrong format");
-		}
-		catch(IllegalArgumentException | SocketException e) {
+		catch(IOException e) {
 			System.err.println(e.getMessage());
 		}
 	}
