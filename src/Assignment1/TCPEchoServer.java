@@ -25,7 +25,7 @@ public class TCPEchoServer {
 
 			try(ServerSocket serverSocket = new ServerSocket(MYPORT)) {
 				System.out.print("Server started on port " + serverSocket.getLocalPort() + ". ");
-				System.out.print("Buffer size is " + serverBufferSize + " bytes. ");
+				System.out.print("Buffer size is " + serverBufferSize + " byte(s). ");
 				System.out.println("Verbose mode is " + (VERBOSE_MODE ? "on" : "off" + ". "));
 
 				while (true) {
@@ -66,7 +66,6 @@ class ClientThread extends Thread {
 		}
 	}
 
-	@Override
 	public void run() {
 		try {
 			int bytesReceived;
@@ -76,17 +75,18 @@ class ClientThread extends Thread {
 			int offset = 0;
 			if(VERBOSE_MODE)
 				System.out.println("TCP echo request from " + socket.getInetAddress().toString().substring(1) + ". ");
+			
 			while((bytesReceived = in.read(buf)) > 0) { // loops while input stream contains data. consumes input stream and stores it to buf array 
 				receivedString += new String(buf, 0, bytesReceived); // piece together the message
 				out.write(receivedString.getBytes(), offset, bytesReceived); // send back (echo)
 				offset += bytesReceived;
 				if(VERBOSE_MODE) {
-					System.out.println(" Sent and received " + bytesReceived + " bytes using port " + socket.getPort());
+					System.out.println(" Sent and received " + bytesReceived + " byte(s) using port " + socket.getPort());
 				}
 			}
 			if(!VERBOSE_MODE) {
 				System.out.print("TCP echo request from " + socket.getInetAddress().toString().substring(1) + ". ");
-				System.out.println("Sent and received " + receivedString.getBytes().length + " bytes using port " + socket.getPort());
+				System.out.println("Sent and received " + receivedString.getBytes().length + " byte(s) using port " + socket.getPort());
 			}
 			socket.close();
 		}

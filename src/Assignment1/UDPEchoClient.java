@@ -7,7 +7,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 public class UDPEchoClient extends NetworkLayer {
-	private final int MYPORT = 0;
+	private static final int MYPORT = 0;
 
 	public UDPEchoClient(String[] args) {
 		super(args, "UDP");

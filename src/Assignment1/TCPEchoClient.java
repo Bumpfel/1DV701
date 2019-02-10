@@ -64,7 +64,6 @@ public class TCPEchoClient extends NetworkLayer {
 				validatePacketIntegrityAndPrintResults(packet, receivedString, i);
 
 			}
-			socket.close();
 		}
 		catch(IOException e) {
 			System.err.println(e.getMessage());

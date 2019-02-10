@@ -33,7 +33,7 @@ public abstract class NetworkLayer {
 
 	protected void validateArgs(String[] args) {
 		int expectedArgs = 4;
-		
+
 		try {
 			if(args.length != expectedArgs)
 				throw new IllegalArgumentException("Incorrect launch commands.\nUsage: server_name port message_transfer_rate client_buffer_size");
