@@ -31,7 +31,7 @@ public class TCPEchoServer {
 				while (true) {
 					Socket clientSocket = serverSocket.accept();
 
-					ClientThread clientThread = new ClientThread(clientSocket, serverBufferSize);
+					ClientThread clientThread = new ClientThread(clientSocket, serverBufferSize, VERBOSE_MODE);
 					clientThread.start();
 				}
 			}
@@ -51,12 +51,13 @@ class ClientThread extends Thread {
 	private OutputStream out;
 	private Socket socket;
 	public int bufferSize;
-	private final boolean VERBOSE_MODE = false; // prints information about every packet (otherwise it will only print when a client has finished sending everything
+	private final boolean VERBOSE_MODE; // prints information about every packet (otherwise it will only print when a client has finished sending everything
 
-	public ClientThread(Socket newSocket, int serverBufferSize) {
+	public ClientThread(Socket newSocket, int serverBufferSize, boolean verboseMode) {
 		socket = newSocket;
 		bufferSize = serverBufferSize;
-
+		VERBOSE_MODE = verboseMode;
+		
 		try {
 			in = new DataInputStream(socket.getInputStream());			
 			out = new DataOutputStream(socket.getOutputStream());
@@ -86,7 +87,7 @@ class ClientThread extends Thread {
 			}
 			if(!VERBOSE_MODE) {
 				System.out.print("TCP echo request from " + socket.getInetAddress().toString().substring(1) + ". ");
-				System.out.println("Sent and received " + receivedString.getBytes().length + " byte(s) using port " + socket.getPort());
+				System.out.println("Sent and received " + receivedString.length() + " byte(s) using port " + socket.getPort());
 			}
 			socket.close();
 		}

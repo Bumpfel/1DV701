@@ -15,16 +15,6 @@ public class TCPEchoClient extends NetworkLayer {
 		
 	public TCPEchoClient(String[] args) {
 		super(args, "TCP");
-
-		// Set up connection
-		try {
-			socket = new Socket(destinationIP, destinationPort);
-			in = new DataInputStream(socket.getInputStream());
-			out = new DataOutputStream(socket.getOutputStream());
-		}
-		catch(IOException e) {
-			System.out.println(e.getMessage());
-		}
 	}
 	
 	public static void main(String[] args) {
@@ -35,7 +25,12 @@ public class TCPEchoClient extends NetworkLayer {
 	}
 	
 	public void send(String packet) {
+		// Set up connection
 		try {
+			socket = new Socket(destinationIP, destinationPort);
+			in = new DataInputStream(socket.getInputStream());
+			out = new DataOutputStream(socket.getOutputStream());
+			
 			validatePacket(packet);
 			System.out.println("--Msg size is " + packet.length() + ", and buffer size is " + clientBufferSize + ". Verbose mode is " + (VERBOSE_MODE ? "on" : "off"));
 			
@@ -46,7 +41,7 @@ public class TCPEchoClient extends NetworkLayer {
 				// Send
 				out.write(packet.getBytes()); // sends message as byte array
 				if(VERBOSE_MODE)
-					System.out.println("Packet #" + i + ": " + packet.getBytes().length + " byte(s) sent");
+					System.out.println("Packet #" + (i + 1)+ ": " + packet.length() + " byte(s) sent");
 				
 				// Receive echo
 				int bytesReceived = 0;
@@ -54,16 +49,17 @@ public class TCPEchoClient extends NetworkLayer {
 				byte[] buf = new byte[clientBufferSize];
 				do {
 					bytesReceived = in.read(buf); // receive echo, put it in a buffer
-					receivedString += new String(buf, 0, bytesReceived); // piece together the message by appending the buffer to a string. do not add empty slots from the buffer array
+					receivedString += new String(buf, 0, bytesReceived); // pieces together the message by appending the buffer to a string. does not add empty or old data from the buffer array
 					if(VERBOSE_MODE)
 						System.out.println(" " + bytesReceived + " bytes received");
 				}
-				while(receivedString.getBytes().length < packet.getBytes().length); // loop until the received echo message matches the original
+				while(receivedString.length() < packet.length()); // loop until the received echo message matches the original
 				
 				// Done
 				validatePacketIntegrityAndPrintResults(packet, receivedString, i);
-
+				
 			}
+			socket.close();
 		}
 		catch(IOException e) {
 			System.err.println(e.getMessage());

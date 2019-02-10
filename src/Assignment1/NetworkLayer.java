@@ -93,7 +93,7 @@ public abstract class NetworkLayer {
 	}
 
 	protected void validatePacketIntegrityAndPrintResults(String sentPacket, String receivedPacket, int packetNumber) {
-		System.out.println("Packet #" + packetNumber + ": In total " + sentPacket.length() + " byte(s) sent and " + receivedPacket.length() + " byte(s) received");
+		System.out.println("Packet #" + (packetNumber + 1) + ": In total " + sentPacket.length() + " byte(s) sent and " + receivedPacket.length() + " byte(s) received");
 
 		if (receivedPacket.compareTo(sentPacket) != 0) {
 			System.out.printf("Sent and received msg not equal!\n");

@@ -13,10 +13,10 @@ public class UDPEchoServer {
 	public static void main(String[] args) {
 		UDPEchoServer udpServer = new UDPEchoServer();
 		
-		udpServer.startServer(args);
+		udpServer.startServer();
 	}
 
-	public void startServer(String[] args) {
+	public void startServer() {
 		byte[] buf = new byte[BUFSIZE];
 		
 		try(DatagramSocket socket = new DatagramSocket(null)) {
