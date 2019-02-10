@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 
 public class TCPEchoServer {
 	public final int MYPORT = 4951;
@@ -57,7 +58,7 @@ class ClientThread extends Thread {
 		socket = newSocket;
 		bufferSize = serverBufferSize;
 		VERBOSE_MODE = verboseMode;
-		
+
 		try {
 			in = new DataInputStream(socket.getInputStream());			
 			out = new DataOutputStream(socket.getOutputStream());
@@ -74,10 +75,9 @@ class ClientThread extends Thread {
 			byte[] buf = new byte[bufferSize];
 
 			int offset = 0;
-			if(VERBOSE_MODE)
-				System.out.println("TCP echo request from " + socket.getInetAddress().toString().substring(1) + ". ");
-			
-			while((bytesReceived = in.read(buf)) > 0) { // loops while input stream contains data. consumes input stream and stores it to buf array 
+			System.out.println("TCP echo request from " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
+
+			while((bytesReceived = in.read(buf)) > 0) { // loops while input stream contains data. consumes input stream and stores it to buf array 				
 				receivedString += new String(buf, 0, bytesReceived); // piece together the message
 				out.write(receivedString.getBytes(), offset, bytesReceived); // send back (echo)
 				offset += bytesReceived;
@@ -85,11 +85,14 @@ class ClientThread extends Thread {
 					System.out.println(" Sent and received " + bytesReceived + " byte(s) using port " + socket.getPort());
 				}
 			}
-			if(!VERBOSE_MODE) {
-				System.out.print("TCP echo request from " + socket.getInetAddress().toString().substring(1) + ". ");
+			if(!VERBOSE_MODE)
 				System.out.println("Sent and received " + receivedString.length() + " byte(s) using port " + socket.getPort());
-			}
+			else
+				System.out.println("In total, sent and received " + receivedString.length() + " byte(s) using port " + socket.getPort() + " to " + socket.getInetAddress().toString().substring(1));
 			socket.close();
+		}
+		catch(SocketException e) {
+			System.out.println(e.getMessage());
 		}
 		catch(IOException e) {
 			try {

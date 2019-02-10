@@ -47,13 +47,13 @@ public class TCPEchoClient extends NetworkLayer {
 				int bytesReceived = 0;
 				String receivedString = new String();
 				byte[] buf = new byte[clientBufferSize];
-				do {
+//				do {
+				while(receivedString.length() < packet.length()) { // loop until the received echo message matches the original
 					bytesReceived = in.read(buf); // receive echo, put it in a buffer
 					receivedString += new String(buf, 0, bytesReceived); // pieces together the message by appending the buffer to a string. does not add empty or old data from the buffer array
 					if(VERBOSE_MODE)
 						System.out.println(" " + bytesReceived + " bytes received");
 				}
-				while(receivedString.length() < packet.length()); // loop until the received echo message matches the original
 				
 				// Done
 				validatePacketIntegrityAndPrintResults(packet, receivedString, i);
