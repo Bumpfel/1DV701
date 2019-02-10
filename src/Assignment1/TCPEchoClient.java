@@ -6,52 +6,62 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.net.SocketException;
-import java.net.UnknownHostException;
 
 public class TCPEchoClient extends NetworkLayer {
 	private final boolean VERBOSE_MODE = true; // prints information about every packet
-	
+	private Socket socket;
+	private InputStream in;
+	private OutputStream out;
+		
 	public TCPEchoClient(String[] args) {
-		super(args, 100, "TCP");
-	}
-	
-	public static void main(String[] args) {
-		TCPEchoClient tcpClient = new TCPEchoClient(args);
-
-		tcpClient.validateArgs(args, tcpClient.MSG, tcpClient.MAX_PACKET_SIZE);
+		super(args, "TCP");
 
 		// Set up connection
 		try {
-			Socket socket = new Socket(tcpClient.destinationIP, tcpClient.destinationPort);
-			InputStream in = new DataInputStream(socket.getInputStream());
-			OutputStream out = new DataOutputStream(socket.getOutputStream());
-
-			System.out.println("Msg size is " + tcpClient.MSG.length() + ", and buffer size is " + tcpClient.clientBufferSize + ". Verbose mode is " + (tcpClient.VERBOSE_MODE ? "on" : "off"));
+			socket = new Socket(destinationIP, destinationPort);
+			in = new DataInputStream(socket.getInputStream());
+			out = new DataOutputStream(socket.getOutputStream());
+		}
+		catch(IOException e) {
+			System.out.println(e.getMessage());
+		}
+	}
+	
+	public static void main(String[] args) {
+		NetworkLayer client = new TCPEchoClient(args);
+		
+		String msg = client.createPacket(100); // creates a msg of length [arg]
+		client.send(msg);
+	}
+	
+	public void send(String packet) {
+		try {
+			validatePacket(packet);
+			System.out.println("--Msg size is " + packet.length() + ", and buffer size is " + clientBufferSize + ". Verbose mode is " + (VERBOSE_MODE ? "on" : "off"));
 			
 			long timestamp = System.currentTimeMillis();
-			for(int i = 0; i < tcpClient.msgTransferRate; i ++) { // loop for each message (transfer rate)
-				tcpClient.checkMaxTime(timestamp, i, tcpClient.msgTransferRate);
+			for(int i = 0; i < msgTransferRate; i ++) { // loop for each message (transfer rate)
+				checkMaxTime(timestamp, i, msgTransferRate);
 				
 				// Send
-				out.write(tcpClient.MSG.getBytes()); // sends message as byte array
-				if(tcpClient.VERBOSE_MODE)
-					System.out.println(tcpClient.MSG.getBytes().length + " byte(s) sent");
+				out.write(packet.getBytes()); // sends message as byte array
+				if(VERBOSE_MODE)
+					System.out.println("Packet #" + i + ": " + packet.getBytes().length + " byte(s) sent");
 				
 				// Receive echo
 				int bytesReceived = 0;
 				String receivedString = new String();
-				byte[] buf = new byte[tcpClient.clientBufferSize];
+				byte[] buf = new byte[clientBufferSize];
 				do {
 					bytesReceived = in.read(buf); // receive echo, put it in a buffer
 					receivedString += new String(buf, 0, bytesReceived); // piece together the message by appending the buffer to a string. do not add empty slots from the buffer array
-					if(tcpClient.VERBOSE_MODE)
-						System.out.println(bytesReceived + " bytes received");
+					if(VERBOSE_MODE)
+						System.out.println(" " + bytesReceived + " bytes received");
 				}
-				while(receivedString.getBytes().length < tcpClient.MSG.getBytes().length); // loop until the received echo message matches the original
+				while(receivedString.getBytes().length < packet.getBytes().length); // loop until the received echo message matches the original
 				
 				// Done
-				tcpClient.validatePacketIntegrityAndPrintResults(tcpClient.MSG, receivedString);
+				validatePacketIntegrityAndPrintResults(packet, receivedString, i);
 
 			}
 			socket.close();

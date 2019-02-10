@@ -7,12 +7,18 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
 public class UDPEchoServer {
-	public static final int BUFSIZE = 64;
-	public static final int MYPORT = 4950;
+	public final int BUFSIZE = 64;
+	public final int MYPORT = 4950;
 
 	public static void main(String[] args) {
-		byte[] buf = new byte[BUFSIZE];
+		UDPEchoServer udpServer = new UDPEchoServer();
+		
+		udpServer.startServer(args);
+	}
 
+	public void startServer(String[] args) {
+		byte[] buf = new byte[BUFSIZE];
+		
 		try(DatagramSocket socket = new DatagramSocket(null)) {
 			/* Create socket */
 			System.out.print("Server started on port " + MYPORT + ". ");

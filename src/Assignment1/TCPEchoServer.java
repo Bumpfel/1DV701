@@ -7,18 +7,22 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 
 public class TCPEchoServer {
-	public static final int MYPORT = 4951;
-	private static final boolean VERBOSE_MODE = false; // if true, prints information about every packet segment
+	public final int MYPORT = 4951;
+	private final boolean VERBOSE_MODE = false; // if true, prints information about every packet segment
 
 	public static void main(String[] args) {
+		TCPEchoServer tcpServer = new TCPEchoServer();
+		tcpServer.startServer(args);
+	}
+
+	public void startServer(String[] args) {
 		try {
 			if(args.length != 1)
 				throw new IllegalArgumentException("Incorrect launch commands. Usage: buffer_size");
 			int serverBufferSize = Integer.parseInt(args[0]);
-		
+
 			try(ServerSocket serverSocket = new ServerSocket(MYPORT)) {
 				System.out.print("Server started on port " + serverSocket.getLocalPort() + ". ");
 				System.out.print("Buffer size is " + serverBufferSize + " bytes. ");
@@ -26,7 +30,7 @@ public class TCPEchoServer {
 
 				while (true) {
 					Socket clientSocket = serverSocket.accept();
-	
+
 					ClientThread clientThread = new ClientThread(clientSocket, serverBufferSize);
 					clientThread.start();
 				}
@@ -47,12 +51,12 @@ class ClientThread extends Thread {
 	private OutputStream out;
 	private Socket socket;
 	public int bufferSize;
-	private static final boolean VERBOSE_MODE = false; // prints information about every packet (otherwise it will only print when a client has finished sending everything
-	
+	private final boolean VERBOSE_MODE = false; // prints information about every packet (otherwise it will only print when a client has finished sending everything
+
 	public ClientThread(Socket newSocket, int serverBufferSize) {
 		socket = newSocket;
 		bufferSize = serverBufferSize;
-		
+
 		try {
 			in = new DataInputStream(socket.getInputStream());			
 			out = new DataOutputStream(socket.getOutputStream());
