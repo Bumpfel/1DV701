@@ -5,11 +5,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 
 public class TCPEchoClient extends NetworkLayer {
 	private final boolean VERBOSE_MODE = true; // prints information about every packet
-	private Socket socket;
 	private InputStream in;
 	private OutputStream out;
 		
@@ -26,8 +26,8 @@ public class TCPEchoClient extends NetworkLayer {
 	
 	public void send(String packet) {
 		// Set up connection
-		try {
-			socket = new Socket(destinationIP, destinationPort);
+		try(Socket socket = new Socket()) {
+			socket.connect(new InetSocketAddress(destinationIP, destinationPort), 5000);
 			in = new DataInputStream(socket.getInputStream());
 			out = new DataOutputStream(socket.getOutputStream());
 			
@@ -59,7 +59,6 @@ public class TCPEchoClient extends NetworkLayer {
 				validatePacketIntegrityAndPrintResults(packet, receivedString, i);
 				
 			}
-			socket.close();
 		}
 		catch(IOException e) {
 			System.err.println(e.getMessage());
