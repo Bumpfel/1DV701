@@ -1,13 +1,14 @@
 package assignment2;
 
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
-import java.net.ServerSocket;
-import java.net.Socket;
 
 public class WebServer {
 	public final int MYPORT = 9000;
@@ -21,7 +22,6 @@ public class WebServer {
 		try {
 			try(ServerSocket serverSocket = new ServerSocket(MYPORT)) {
 				System.out.print("Server started on port " + serverSocket.getLocalPort() + ". ");
-//				System.out.print("Buffer size is " + serverBufferSize + " byte(s). ");
 				System.out.println();
 
 				while (true) {
@@ -32,10 +32,7 @@ public class WebServer {
 				}
 			}
 		}
-		catch(NumberFormatException e) {
-			System.out.println("Invalid argument format");
-		}
-		catch(IllegalArgumentException | IOException e) {
+		catch(IOException e) {
 			System.out.println(e.getMessage());
 		}
 	}
@@ -44,18 +41,18 @@ public class WebServer {
 class ClientThread extends Thread {
 
 	private BufferedReader in;
-//	private DataInputStream in;
 	private DataOutputStream out;
-	private Socket socket;
-	private final String DIR_PATH = "src/assignment2/content/";
+    private Socket socket;
+    
+    private final String DIR_PATH = "src/assignment2/content/";
+    private final String RESPONSE_PATH = "src/assignment2/responses";
 
-	public ClientThread(Socket newSocket) {
-		socket = newSocket;
+	public ClientThread(Socket socket) {
+		this.socket = socket;
 
 		try {
 			socket.setSoTimeout(10000);
 			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));			
-//			in = new DataInputStream(socket.getInputStream());		
 			out = new DataOutputStream(socket.getOutputStream());
 		}
 		catch(IOException e) {
@@ -65,48 +62,33 @@ class ClientThread extends Thread {
 
 	public void run() {
 		try {
-			int bytesRead;
-			String requestString = new String();
-			byte[] buf = new byte[1024];
-			
-			
-			String line;
-			while(true) {
-				line = in.readLine();
-				requestString += line + "\n";
-				if (line.isEmpty() || line.equals("\r\n"))
-					break;
-			}
-			
-//			while((bytesRead = in.read(buf)) != -1) { // loops while input stream contains data. consumes input stream and stores it to buf array
-//				requestString += new String(buf, 0, bytesRead);
-//				
-//			}
-			
-			HTTPRequest request = HTTPRequest.parseRequest(requestString);
-			System.out.println(request .TYPE + " request from " + socket.getInetAddress().toString().substring(1));
+			HTTPRequest request = HTTPRequest.parseRequest(readRequest());
+			System.out.println(request.TYPE + " request from " + socket.getInetAddress().toString().substring(1));
 
-			File file = new File(DIR_PATH + request.PATH);
-
-			HTTPHeader header = new HTTPHeader(request, file);
-//			String header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"; //TODO DEBUG ------------------------------------------------
-			out.write(header.toString().getBytes());
+			HTTPResponse response = new HTTPResponse(request, DIR_PATH);
+			out.write(response.toString().getBytes());
 			
-			// out.write(createHeader(file).getBytes());
-			writeFile(file);
+			writeFile(response.getFile());
 			
-			System.out.println("Sent " + file.length() + " byte(s) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
+			System.out.println("Sent " + response.getFile().length() + " byte(s) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
 
 			socket.close();
 		}
-//		catch(SocketException e) {
-//			System.err.println(e.getMessage());
-//		}
-		catch(HTTPException e) {
-			System.out.println(e.getMessage());
+		catch(FileNotFoundException e) {
+			try {
+				// File fourohfour = new File(RESPONSE_PATH + "/404.html");
+				// String response = ("HTTP/1.1 404 Not Found\r\n");
+				// response += ("Content-Type: text/html\r\n");
+				// response += ("\r\n");
+				// out.write(response.getBytes());
+				// writeFile(fourohfour);
+
+				socket.close();
+			}
+			catch(IOException e2) {
+			}
 		}
-		catch(IOException e) { //catch(IOException e) {
-			System.err.println("This is an exception");
+		catch(HTTPException | IOException e) {
 			System.err.println(e.getMessage());
 			try {
 				socket.close();
@@ -114,23 +96,30 @@ class ClientThread extends Thread {
 			catch(IOException e2) {
 			}
 		}
-//		catch(Exception e) {
-//			System.err.println("An exception was thrown!");
-//			System.err.println(e.getMessage());
-//		}
+	}
+	
+	private String readRequest() throws IOException {
+		String line, requestString = new String();
+		while(true) {
+			line = in.readLine();
+			requestString += line + "\n";
+			if (line.isEmpty() || line.equals("\r\n"))
+				break;
+		}
+		return requestString;
 	}
 	
 	private void writeFile(File file) {
-		byte[] buf = new byte[1024];
+		byte[] buf = new byte[1500];
 		
-		try(FileInputStream fIn = new FileInputStream(file)) {
+		try(FileInputStream fileIn = new FileInputStream(file)) {
 			int bytesRead;
-			while((bytesRead = fIn.read(buf)) > 0) {
+			while((bytesRead = fileIn.read(buf)) > 0) {
 				out.write(buf, 0, bytesRead);
 			}
 		}
 		catch(IOException e) {
-			System.out.println(e.getMessage());
+			// System.err.println(e.getMessage());
 		}
 	}
 	

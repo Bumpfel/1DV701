@@ -7,4 +7,8 @@ public class HTTPException extends Exception {
 	public HTTPException(String msg) {
 		super(msg);
 	}
+
+	public HTTPException() {
+		super();
+	}
 }

@@ -26,12 +26,12 @@ public class HTTPRequest {
 			String[] headers = Arrays.copyOfRange(lines, 1, lines.length);
 			
 			String path = firstLine[1];
-			if(path.equals("/"))
-				path = "index.html";
+			if(path.endsWith("/")) // set default file if path ends with a slash
+				path += "index.html";
 			
 			return new HTTPRequest(headers, path, RequestType.valueOf(firstLine[0]));
 		}
 		throw new HTTPException("Empty request");
 	}
-	
+
 }
