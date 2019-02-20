@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Map;
 
-import assignment2.HTTPRequest.RequestType;
+import assignment2.HTTPRequest.RequestMethod;
 
 public class HTTPResponse {
 	private String response;
@@ -25,7 +25,7 @@ public class HTTPResponse {
 
 	public HTTPResponse(HTTPRequest request, String dirPath, String respPath) throws HTTPException {
 		
-		if(request.TYPE == RequestType.GET) {
+		if(request.METHOD == RequestMethod.GET) {
 			response = "HTTP/1.1 200 OK\r\n";
 
 			file = new File(dirPath + request.PATH);
@@ -49,8 +49,8 @@ public class HTTPResponse {
 			else if(!file.exists()) {
 				response = "HTTP/1.1 404 Not Found\r\n";
 				response += "Content-Type: text/html\r\n";
-				// file = new File(respPath + "/404.html");
-				response += makeHTMLResponse("404", "File Not Found", "The page you're looking for does not exist");
+				file = new File(respPath + "/404.html");
+				// response += makeHTMLResponse("404", "File Not Found", "The page you're looking for does not exist");
 			}
 			else {
 				try {
@@ -64,7 +64,7 @@ public class HTTPResponse {
 			}
 			
 		}
-		else if(request.TYPE == RequestType.POST) {
+		else if(request.METHOD == RequestMethod.POST) {
 			// file = n
 		}
 		else

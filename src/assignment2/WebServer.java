@@ -3,6 +3,9 @@ package assignment2;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+
+import assignment2.HTTPRequest.RequestMethod;
+
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -51,7 +54,7 @@ class ClientThread extends Thread {
 		this.socket = socket;
 
 		try {
-			// socket.setSoTimeout(10000); // TODO uncomment?
+			socket.setSoTimeout(10000);
 			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));			
 			out = new DataOutputStream(socket.getOutputStream());
 		}
@@ -63,12 +66,14 @@ class ClientThread extends Thread {
 	public void run() {
 		try {
 			HTTPRequest request = HTTPRequest.parseRequest(readRequest());
-			System.out.println(request.TYPE + " request from " + socket.getInetAddress().toString().substring(1));
+			System.out.println(request.METHOD + " request from " + socket.getInetAddress().toString().substring(1));
 
 			HTTPResponse response = new HTTPResponse(request, DIR_PATH, RESPONSE_PATH);
 			out.write(response.toString().getBytes());
 			
-			writeFile(response.getFile());
+			if(request.METHOD == RequestMethod.GET) {
+				writeFile(response.getFile());
+			}
 			
 			System.out.println("Sent " + response.getFile().length() + " byte(s) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
 

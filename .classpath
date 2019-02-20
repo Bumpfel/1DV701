@@ -7,6 +7,6 @@
 	</classpathentry>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="output" path="bin"/>
-	<classpathentry kind="lib" path="lib/javax.servlet-api-3.1.0"/>
-	<!-- <classpathentry kind="lib" path="lib/javax.servlet-api-4.0.1"/> -->
+	<classpathentry kind="lib" path="lib/javax.servlet-api-3.1.0.jar"/>
+	<!-- <classpathentry kind="lib" path="lib/javax.servlet-api-4.0.1.jar"/> -->
 </classpath>

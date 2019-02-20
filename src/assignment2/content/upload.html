@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <title>Upload</title>
+
+  <script type="text/javascript">
+ 		
+    function POST() {
+       
+       var filesSelected = document.getElementById("file1").files;
+         
+         if (filesSelected.length > 0) {
+             
+             var fileToLoad = filesSelected[0];
+         
+         var fileReader = new FileReader();
+          
+          fileReader.onload = function(fileLoadedEvent) {
+               
+                 var filename = fileToLoad.name;
+               
+                 var content = document.getElementById("contents");
+               
+                 content.value = fileLoadedEvent.target.result;
+               
+                 content.name = filename;
+             };
+          
+          fileReader.readAsDataURL(fileToLoad);
+        }
+     }
+     
+     
+     function PUT() {
+       
+       var filesSelected = document.getElementById("updatedFile").files;
+         
+         if (filesSelected.length > 0) {
+             
+             var fileToLoad = filesSelected[0];
+         
+         var fileReader = new FileReader();
+          
+          fileReader.onload = function(fileLoadedEvent) {
+               
+                 var filename = fileToLoad.name;
+               
+                 var content = document.getElementById("updateContents");
+               
+                 content.value = fileLoadedEvent.target.result;
+                 
+                 // Adding PUT manually because HTML5 does not support it
+                 content.name = "Method-PUT" + filename;
+             };
+          
+          fileReader.readAsDataURL(fileToLoad);
+        }
+     }
+     
+     
+    </script>
+</head>
+
+<body style="background-color:#bbc"></body>
+  <h1>Upload</h1>
+  <p>
+    <form method="post" action="upload" name="fileUploadForm" enctype="multipart/form-data">
+      Ladda upp fil
+      <br>
+      <input type="file" id="file1" name="file1" accept="image/"/><br>
+      <input id="contents" hidden ="on">
+      <input type="submit" value="Upload">
+    </form>
+  </p>
+
+ <a href="/">index</a>
+ <br>
+</body>
+
+</html>
