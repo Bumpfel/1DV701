@@ -5,7 +5,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 import assignment2.HTTPRequest.RequestType;
@@ -14,16 +13,23 @@ public class HTTPResponse {
 	private String response;
 	private ArrayList<String> headers = new ArrayList<>();
 	private File file;
-	
+	private Map<String, String> contentTypes = Map.of(
+		"html", "text/html; charset=UTF-8",
+		"htm", "text/html; charset=UTF-8",
+		"png", "image/png; charset=UTF-8",
+		"gif", "image/gif",
+		"jpg", "image/jpg",
+		"jpeg", "image/jpg",
+		"css", "text/css"
+	);
 
-
-	public HTTPResponse(HTTPRequest request, String dirPath) throws HTTPException {
+	public HTTPResponse(HTTPRequest request, String dirPath, String respPath) throws HTTPException {
 		
 		if(request.TYPE == RequestType.GET) {
 			response = "HTTP/1.1 200 OK\r\n";
 
 			file = new File(dirPath + request.PATH);
-			
+
 			// change to index.htm if no index.html is found
 			if(!file.exists() && file.getName().equals("index.html"))
 				file = new File(dirPath + request.PATH.substring(0, request.PATH.length() - 1));
@@ -32,23 +38,37 @@ public class HTTPResponse {
 			if(request.PATH.startsWith("/forbidden")) {
 				response = "HTTP/1.1 403 Forbidden\r\n";
 				response += "Content-Type: text/html\r\n";
-				file = new File("src/assignment2/responses/403.html");
-			}
-			// 404 file not found
-			else if(!file.exists()) {
-				response = "HTTP/1.1 404 Not Found\r\n";
-				response += "Content-Type: text/html\r\n";
-				file = new File("src/assignment2/responses/404.html");
+				file = new File(respPath + "/403.html");
 			}
 			// 302 redirect
 			else if(request.PATH.equals("/start")) {
 				response = "HTTP/1.1 302 Found\r\n";
 				response += "Location: /";
 			}
+			// 404 file not found
+			else if(!file.exists()) {
+				response = "HTTP/1.1 404 Not Found\r\n";
+				response += "Content-Type: text/html\r\n";
+				// file = new File(respPath + "/404.html");
+				response += makeHTMLResponse("404", "File Not Found", "The page you're looking for does not exist");
+			}
+			else {
+				try {
+					makeResponse200();
+				}
+				catch(HTTPException e) {
+					response = "HTTP/1.1 500 Internal Server Error\r\n";
+					response += "Content-Type: text/html\r\n";
+					file = new File(respPath + "/500.html");
+				}
+			}
 			
 		}
+		else if(request.TYPE == RequestType.POST) {
+			// file = n
+		}
 		else
-			throw new HTTPException("Invalid request");		
+			throw new HTTPException("Invalid or unimplemented request");
 	}
 
 	public File getFile() { // TODO encapsulation?
@@ -68,27 +88,28 @@ public class HTTPResponse {
 		return new String(strB);
 	}
 	
-	private void makeResponse200() {
-		Map<String, String> contentTypes = new HashMap<>();
-				
-		contentTypes.put("html", "text/html; charset=UTF-8");
-		contentTypes.put("htm", "text/html; charset=UTF-8");
-		contentTypes.put("png", "image/png; charset=UTF-8");
-		contentTypes.put("gif", "image/gif");
-		contentTypes.put("jpg", "image/jpg");
-		contentTypes.put("jpeg", "image/jpg");
-
+	private void makeResponse200() throws HTTPException {
 		int dotPos = file.getName().lastIndexOf(".");
+
 		String fileEnding = file.getName().substring(dotPos + 1);
 
 		//TODO remove unnecessary headers
 		headers.add("Date: " + new Date().toString());
+		if(contentTypes.get(fileEnding) == null)
+			throw new HTTPException();
 		headers.add("Content-Type: " + contentTypes.get(fileEnding));
 		headers.add("Content-Length: " + file.length());
-		// headers.add("Connection: close"); 
+		// headers.add("Connection: keep-alive"); //TODO check if this is needed to close the thread
 		// headers.add("Server: Bumpfel WebServer 1.0");
 	}
 
+	private String makeHTMLResponse(String code, String title, String extraInfo) {
+		String response = "<html><head><link rel='stylesheet' href='/style.css'><title>" + code + " " + title + "</title></head>";
+		response += "<body class='" + code + "'><div class='error'>";
+		response += "<h1>" + code + "</h1><h2>" + title + "</h2>" + extraInfo + "<br><br><a href='/'>Go to index</a>";
+		response += "</div></body></html>";
+		return response;
+	}
 
 
 //	return	  "HTTP/1.1 200 OK\r\n"

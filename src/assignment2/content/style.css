@@ -1,4 +1,38 @@
 img {
-    width: 200px;
-    height: auto;
+    width: auto;
+}
+
+img.small {
+    height: 150px;
+}
+
+img.big {
+    height: 400px;
+}
+
+body.error404 {
+    background-color: #aba;
+}
+
+body.error403 {
+    background-color: #caa;
+}
+
+body.error500 {
+    background-color: #bbb;
+}
+
+div.error {
+    padding: 100px 0 0 400px; 
+    font-family: Arial, sans-serif";
+}
+
+div.error h1 {
+    font-size: 200px; 
+    margin: 0;
+}
+
+dir.error h2 {
+   font-size: 50px; 
+   margin-top: 0;
 }

@@ -51,7 +51,7 @@ class ClientThread extends Thread {
 		this.socket = socket;
 
 		try {
-			socket.setSoTimeout(10000);
+			// socket.setSoTimeout(10000); // TODO uncomment?
 			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));			
 			out = new DataOutputStream(socket.getOutputStream());
 		}
@@ -65,7 +65,7 @@ class ClientThread extends Thread {
 			HTTPRequest request = HTTPRequest.parseRequest(readRequest());
 			System.out.println(request.TYPE + " request from " + socket.getInetAddress().toString().substring(1));
 
-			HTTPResponse response = new HTTPResponse(request, DIR_PATH);
+			HTTPResponse response = new HTTPResponse(request, DIR_PATH, RESPONSE_PATH);
 			out.write(response.toString().getBytes());
 			
 			writeFile(response.getFile());
@@ -73,20 +73,6 @@ class ClientThread extends Thread {
 			System.out.println("Sent " + response.getFile().length() + " byte(s) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
 
 			socket.close();
-		}
-		catch(FileNotFoundException e) {
-			try {
-				// File fourohfour = new File(RESPONSE_PATH + "/404.html");
-				// String response = ("HTTP/1.1 404 Not Found\r\n");
-				// response += ("Content-Type: text/html\r\n");
-				// response += ("\r\n");
-				// out.write(response.getBytes());
-				// writeFile(fourohfour);
-
-				socket.close();
-			}
-			catch(IOException e2) {
-			}
 		}
 		catch(HTTPException | IOException e) {
 			System.err.println(e.getMessage());
