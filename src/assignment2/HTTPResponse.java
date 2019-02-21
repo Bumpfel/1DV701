@@ -2,8 +2,10 @@ package assignment2;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
 
@@ -24,18 +26,25 @@ public class HTTPResponse {
 	);
 
 	public HTTPResponse(HTTPRequest request, String dirPath, String respPath) throws HTTPException {
-		
-		if(request.METHOD == RequestMethod.GET) {
-			response = "HTTP/1.1 200 OK\r\n";
 
+		response = "HTTP/1.1 200 OK\r\n";
+
+		if(request.METHOD == RequestMethod.GET) {
 			file = new File(dirPath + request.PATH);
 
 			// change to index.htm if no index.html is found
 			if(!file.exists() && file.getName().equals("index.html"))
 				file = new File(dirPath + request.PATH.substring(0, request.PATH.length() - 1));
 
+			// 404 file not found
+			if(!file.exists()) {
+				response = "HTTP/1.1 404 Not Found\r\n";
+				response += "Content-Type: text/html\r\n";
+				file = new File(respPath + "/404.html");
+				// response += makeHTMLResponse("404", "File Not Found", "The page you're looking for does not exist");
+			}
 			// 403 forbidden
-			if(request.PATH.startsWith("/forbidden")) {
+			else if(request.PATH.startsWith("/forbidden")) {
 				response = "HTTP/1.1 403 Forbidden\r\n";
 				response += "Content-Type: text/html\r\n";
 				file = new File(respPath + "/403.html");
@@ -44,13 +53,6 @@ public class HTTPResponse {
 			else if(request.PATH.equals("/start")) {
 				response = "HTTP/1.1 302 Found\r\n";
 				response += "Location: /";
-			}
-			// 404 file not found
-			else if(!file.exists()) {
-				response = "HTTP/1.1 404 Not Found\r\n";
-				response += "Content-Type: text/html\r\n";
-				file = new File(respPath + "/404.html");
-				// response += makeHTMLResponse("404", "File Not Found", "The page you're looking for does not exist");
 			}
 			else {
 				try {
@@ -65,7 +67,55 @@ public class HTTPResponse {
 			
 		}
 		else if(request.METHOD == RequestMethod.POST) {
-			// file = n
+			// System.out.print(request.ORG_STRING);
+			boolean foundStart = false;
+			int offset = 0;
+			String imageContent = new String();
+			String[] fileInfo = new String[4];
+			String fileName = new String();
+			for(int i = 0; i < request.HEADERS.length; i ++) {
+				offset += request.HEADERS[i].length();
+				if(request.HEADERS[i].startsWith("Content-Disposition: form-data")) {
+					// System.out.print("-- " + request.HEADERS[i + 2] + " --");
+					foundStart = true;
+					fileInfo = request.HEADERS[i].split(" ");
+
+					fileName = fileInfo[3].substring(10, fileInfo[3].length() - 2);
+					continue;
+				}
+				if(foundStart) {
+					// if(request.HEADERS[i].equalsIgnoreCase("Content-Type: image/png")) {
+						try {
+							// ERIC.png (2 267 byte) 2449?
+							imageContent = request.ORG_STRING.substring(offset);
+							
+							int pos = imageContent.charAt('-');
+							imageContent = imageContent.substring(0, 2267);
+
+							System.out.print(imageContent);
+							
+							System.out.println();
+							System.out.println((double) imageContent.length()/1000 + "kB");
+							// FileOutputStream fos = new FileOutputStream(new File("somefile.txt"));
+							FileOutputStream fos = new FileOutputStream(new File("src/assignment2/upload/" + fileName));
+							fos.write(imageContent.getBytes());
+							fos.flush();
+							fos.close();
+							break;
+						}
+						catch(IOException e ) { // TODO temp
+							System.out.print("fel pa filhantering");
+							System.out.print(e.getMessage());
+						}
+					}
+				
+				// if(request.HEADERS[i].startsWith("------WebKitFormBoundary")) {
+				// 	i += 4;
+				// 	startSend = true;
+				// }
+			}
+			// System.out.print("---is done");
+			// System.out.print(request.ORG_STRING); //TODO debug
 		}
 		else
 			throw new HTTPException("Invalid or unimplemented request");
