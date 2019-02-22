@@ -10,15 +10,15 @@ img.big {
     height: 400px;
 }
 
-body.error404 {
+body.r404 {
     background-color: #aba;
 }
 
-body.error403 {
+body.r403 {
     background-color: #caa;
 }
 
-body.error500 {
+body.r500 {
     background-color: #bbb;
 }
 

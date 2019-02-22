@@ -1,71 +1,88 @@
 package assignment2;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 import assignment2.HTTPRequest.RequestMethod;
 
 public class HTTPResponse {
-	private String response;
+	private String responseHeader;
+	private String body;
 	private ArrayList<String> headers = new ArrayList<>();
 	private File file;
-	private Map<String, String> contentTypes = Map.of(
-		"html", "text/html; charset=UTF-8",
-		"htm", "text/html; charset=UTF-8",
-		"png", "image/png; charset=UTF-8",
-		"gif", "image/gif",
-		"jpg", "image/jpg",
-		"jpeg", "image/jpg",
-		"css", "text/css"
-	);
+	private Map<String, String> CONTENT_TYPES = new HashMap<>() {{
+		put("html", "text/html; charset=UTF-8");
+		put("htm", "text/html; charset=UTF-8");
+		put("png", "image/png; charset=UTF-8");
+		put("gif", "image/gif");
+		put("jpg", "image/jpg");
+		put("jpeg", "image/jpg");
+		put("css", "text/css");
+	}};
+	private Map<Integer, String> responseTitles = new HashMap<>() {{
+		put(404, "File Not Found");
+		put(403, "Forbidden");
+		put(500, "Internal Server Error");
+	}};
+	private Map<Integer, String> responseInfo = new HashMap<>() {{
+		put(404, "The page you're looking for does not exist");
+		put(403, "Access to this resource is forbidden");
+		put(500, "The server encountered an internal error");
+	}};
 
-	public HTTPResponse(HTTPRequest request, String dirPath, String respPath) throws HTTPException {
+	public HTTPResponse(int rCode, File newFile) throws HTTPException {
+		String fileEnding = new String();
+		if(newFile != null) {
+			int dotPos = newFile.getName().lastIndexOf(".");
+			fileEnding = newFile.getName().substring(dotPos + 1);
+			// file format not suported
+			if(CONTENT_TYPES.get(fileEnding) == null)
+				rCode = 500;
+			else
+				file = newFile;
+		}
 
-		response = "HTTP/1.1 200 OK\r\n";
+		String title = responseTitles.get(rCode);
+		responseHeader = "HTTP/1.1 " + rCode + " " + title + "\r\n";
+		
+		// decide content type
+		if(rCode != 200)
+			headers.add("Content-Type: text/html\r\n");
+		else {
+			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
+		}
 
+		// make body if response is not 200
+		if(rCode != 200 && rCode != 302)
+			createBody(rCode);
+	}
+
+	public static HTTPResponse createResponse(HTTPRequest request, String dirPath) throws HTTPException {
+	
+		File file = new File(dirPath + request.PATH);
 		if(request.METHOD == RequestMethod.GET) {
-			file = new File(dirPath + request.PATH);
-
 			// change to index.htm if no index.html is found
 			if(!file.exists() && file.getName().equals("index.html"))
 				file = new File(dirPath + request.PATH.substring(0, request.PATH.length() - 1));
-
 			// 404 file not found
-			if(!file.exists()) {
-				response = "HTTP/1.1 404 Not Found\r\n";
-				response += "Content-Type: text/html\r\n";
-				file = new File(respPath + "/404.html");
-				// response += makeHTMLResponse("404", "File Not Found", "The page you're looking for does not exist");
-			}
+			if(!file.exists())
+				return new HTTPResponse(404, null);
 			// 403 forbidden
-			else if(request.PATH.startsWith("/forbidden")) {
-				response = "HTTP/1.1 403 Forbidden\r\n";
-				response += "Content-Type: text/html\r\n";
-				file = new File(respPath + "/403.html");
-			}
+			else if(request.PATH.startsWith("/forbidden"))
+				return new HTTPResponse(403, null);
 			// 302 redirect
-			else if(request.PATH.equals("/start")) {
-				response = "HTTP/1.1 302 Found\r\n";
-				response += "Location: /";
-			}
-			else {
-				try {
-					makeResponse200();
-				}
-				catch(HTTPException e) {
-					response = "HTTP/1.1 500 Internal Server Error\r\n";
-					response += "Content-Type: text/html\r\n";
-					file = new File(respPath + "/500.html");
-				}
-			}
-			
+			else if(request.PATH.equals("/start"))
+				return new HTTPResponse(302, null);
+			// 200 ok
+			else
+				return new HTTPResponse(200, file);			
 		}
+		//File  upload (not working)
+		//TODO remove or fix
 		else if(request.METHOD == RequestMethod.POST) {
 			// System.out.print(request.ORG_STRING);
 			boolean foundStart = false;
@@ -108,28 +125,24 @@ public class HTTPResponse {
 							System.out.print(e.getMessage());
 						}
 					}
-				
-				// if(request.HEADERS[i].startsWith("------WebKitFormBoundary")) {
-				// 	i += 4;
-				// 	startSend = true;
-				// }
-			}
+					
+					// if(request.HEADERS[i].startsWith("------WebKitFormBoundary")) {
+						// 	i += 4;
+						// 	startSend = true;
+						// }
+				}
+			return null;
 			// System.out.print("---is done");
 			// System.out.print(request.ORG_STRING); //TODO debug
 		}
 		else
-			throw new HTTPException("Invalid or unimplemented request");
+			throw new HTTPException("Invalid or unimplemented request"); //TODO ought to be a 405?
 	}
 
-	public File getFile() { // TODO encapsulation?
-		return file;
-	}
-	
-	@Override
-	public String toString() {
+	public String getHeader() {
 		StringBuilder strB = new StringBuilder();
 		
-		strB.append(response);
+		strB.append(responseHeader);
 		for(String header : headers) {
 			strB.append(header + "\r\n");
 		}
@@ -137,28 +150,23 @@ public class HTTPResponse {
 		
 		return new String(strB);
 	}
+
+	public File getFile() {
+		return file;
+	}
 	
-	private void makeResponse200() throws HTTPException {
-		int dotPos = file.getName().lastIndexOf(".");
-
-		String fileEnding = file.getName().substring(dotPos + 1);
-
-		//TODO remove unnecessary headers
-		headers.add("Date: " + new Date().toString());
-		if(contentTypes.get(fileEnding) == null)
-			throw new HTTPException();
-		headers.add("Content-Type: " + contentTypes.get(fileEnding));
-		headers.add("Content-Length: " + file.length());
-		// headers.add("Connection: keep-alive"); //TODO check if this is needed to close the thread
-		// headers.add("Server: Bumpfel WebServer 1.0");
+	public String getBody() {
+		return body;
 	}
 
-	private String makeHTMLResponse(String code, String title, String extraInfo) {
-		String response = "<html><head><link rel='stylesheet' href='/style.css'><title>" + code + " " + title + "</title></head>";
-		response += "<body class='" + code + "'><div class='error'>";
-		response += "<h1>" + code + "</h1><h2>" + title + "</h2>" + extraInfo + "<br><br><a href='/'>Go to index</a>";
-		response += "</div></body></html>";
-		return response;
+	private void createBody(int code) {
+		String info = responseInfo.get(code);
+		String title = responseTitles.get(code);
+
+		body = "<html><head><link rel='stylesheet' href='/style.css'><title>" + code + " " + title + "</title></head>";
+		body += "<body class='r" + code + "'><div class='error'>";
+		body += "<h1>" + code + "</h1><h2>" + title + "</h2>" + info + "<br><br><a href='/'>Go to index</a>";
+		body += "</div></body></html>";
 	}
 
 
