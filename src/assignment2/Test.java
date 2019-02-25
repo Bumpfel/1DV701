@@ -1,13 +1,8 @@
 package assignment2;
 
-import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Calendar;
-import java.util.Locale;
-import java.util.TimeZone;
 
 
 public class Test {
@@ -21,6 +16,7 @@ public class Test {
 		String s = new String(bin);
 
 		System.out.print(s);
+		fis.close();
 
 		// File f = new File(bin);
 

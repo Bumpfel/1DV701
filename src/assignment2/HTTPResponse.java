@@ -1,11 +1,14 @@
 package assignment2;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Scanner;
 
 import assignment2.HTTPRequest.RequestMethod;
 
@@ -54,6 +57,8 @@ public class HTTPResponse {
 			headers.add("Content-Type: text/html\r\n");
 		else {
 			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
+			// headers.add("Content-Length: " + file.length());
+			// headers.add("Connection: close");
 		}
 
 		// make body if response is not 200
@@ -65,75 +70,56 @@ public class HTTPResponse {
 	
 		File file = new File(dirPath + request.PATH);
 		if(request.METHOD == RequestMethod.GET) {
+			if(request.PATH.equals("/start"))
+				file = new File(dirPath + "index.html");
 			// change to index.htm if no index.html is found
 			if(!file.exists() && file.getName().equals("index.html"))
 				file = new File(dirPath + request.PATH.substring(0, request.PATH.length() - 1));
+			// 302 redirect
+			if(request.PATH.equals("/start"))
+				return new HTTPResponse(302, file);
 			// 404 file not found
 			if(!file.exists())
 				return new HTTPResponse(404, null);
 			// 403 forbidden
 			else if(request.PATH.startsWith("/forbidden"))
 				return new HTTPResponse(403, null);
-			// 302 redirect
-			else if(request.PATH.equals("/start"))
-				return new HTTPResponse(302, null);
 			// 200 ok
 			else
-				return new HTTPResponse(200, file);			
+				return new HTTPResponse(200, file);	
 		}
 		//File  upload (not working)
 		//TODO remove or fix
 		else if(request.METHOD == RequestMethod.POST) {
-			// System.out.print(request.ORG_STRING);
-			boolean foundStart = false;
-			int offset = 0;
-			String imageContent = new String();
-			String[] fileInfo = new String[4];
-			String fileName = new String();
-			for(int i = 0; i < request.HEADERS.length; i ++) {
-				offset += request.HEADERS[i].length();
-				if(request.HEADERS[i].startsWith("Content-Disposition: form-data")) {
-					// System.out.print("-- " + request.HEADERS[i + 2] + " --");
-					foundStart = true;
-					fileInfo = request.HEADERS[i].split(" ");
+			for(String header : request.HEADERS) {
+				if(header.startsWith("Content-Type: multipart/form-data")) {
+					String[] temp = header.split("=");
+					String boundary = temp[1];
+					String[] boundaryContent = request.ORG_STRING.split(boundary);
 
-					fileName = fileInfo[3].substring(10, fileInfo[3].length() - 2);
-					continue;
-				}
-				if(foundStart) {
-					// if(request.HEADERS[i].equalsIgnoreCase("Content-Type: image/png")) {
-						try {
-							// ERIC.png (2 267 byte) 2449?
-							imageContent = request.ORG_STRING.substring(offset);
-							
-							int pos = imageContent.charAt('-');
-							imageContent = imageContent.substring(0, 2267);
+					// System.out.println(content.length);
+					// System.out.println(content[2]);
+					String[] temp2 = boundaryContent[2].split("\\n");
 
-							System.out.print(imageContent);
-							
-							System.out.println();
-							System.out.println((double) imageContent.length()/1000 + "kB");
-							// FileOutputStream fos = new FileOutputStream(new File("somefile.txt"));
-							FileOutputStream fos = new FileOutputStream(new File("src/assignment2/upload/" + fileName));
-							fos.write(imageContent.getBytes());
-							fos.flush();
-							fos.close();
-							break;
-						}
-						catch(IOException e ) { // TODO temp
-							System.out.print("fel pa filhantering");
-							System.out.print(e.getMessage());
-						}
+					String imageContent = new String();
+					for(int i = 3; i < temp2.length - 1; i ++) {
+						imageContent += temp2[i];
 					}
-					
-					// if(request.HEADERS[i].startsWith("------WebKitFormBoundary")) {
-						// 	i += 4;
-						// 	startSend = true;
-						// }
+
+					// Write file
+					try {
+						FileOutputStream fos = new FileOutputStream(new File("src/assignment2/upload/somefile.png"));
+						fos.write(imageContent.getBytes());
+						fos.flush();
+						fos.close();
+						break;
+					}
+					catch(IOException e) {
+						System.out.println("fehl fihl"); 
+					}
 				}
+			}
 			return null;
-			// System.out.print("---is done");
-			// System.out.print(request.ORG_STRING); //TODO debug
 		}
 		else
 			throw new HTTPException("Invalid or unimplemented request"); //TODO ought to be a 405?
