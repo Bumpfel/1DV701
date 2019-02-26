@@ -15,7 +15,6 @@ public class HTTPRequest {
 		PATH = path;
 		METHOD = method;
 		ORG_STRING = requestString;
-
 	}
 
 }

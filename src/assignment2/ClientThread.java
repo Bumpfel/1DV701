@@ -16,13 +16,11 @@ public class ClientThread extends Thread {
     private Socket socket;
     
 	private final String CONTENT_PATH = "src/assignment2/content/";
-	private final int SOCKET_TIME_OUT = 10000;
 
 	public ClientThread(Socket socket) {
 		this.socket = socket;
 
 		try {
-			socket.setSoTimeout(SOCKET_TIME_OUT);
 			// bufIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));	//TODO clean up		
 			out = new DataOutputStream(socket.getOutputStream());
 
@@ -35,12 +33,13 @@ public class ClientThread extends Thread {
 	}
 
 	public void run() {
-		try {
-			RequestHandler reqHandler = new RequestHandler(socket.getInputStream());
-            String inData = reqHandler.readChars();// TODO use one
-            // String inData = reqHandler.readLines();
+        try {
+            RequestHandler reqHandler = new RequestHandler(socket.getInputStream());
+            // String inData = reqHandler.readChars();// TODO use one
+            // String inData = reqHandler.readBufferedLines();
+            // String inData2 = reqHandler.readChars2();// TODO use one
             // String inData = reqHandler.readScanner();
-            // System.out.print(inData); // TODO remove debug
+            String inData = reqHandler.readInputStream();
 						
             HTTPRequest request = reqHandler.parseRequest(inData);
             // System.out.println(request.METHOD + " request from " + socket.getInetAddress().toString().substring(1) + " for " + request.PATH.substring(1));
@@ -80,14 +79,13 @@ public class ClientThread extends Thread {
 			if(file != null) {
 				writeFile(file);
 			}
-			else {
+			else if(response.CODE != 302) {
 				out.write(response.getBody().getBytes());
 			}
 		}
 		catch(IOException e) {
 			System.out.print(e.getMessage());
 		}
-
 	}
 	
 	private void writeFile(File file) {

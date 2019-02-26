@@ -1,22 +1,16 @@
 package assignment2;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Scanner;
-
-import assignment2.HTTPRequest.RequestMethod;
 
 public class HTTPResponse {
 	private String responseHeader;
 	private String body;
 	private ArrayList<String> headers = new ArrayList<>();
 	private File file;
+	public final int CODE;
 
 	private final Map<String, String> CONTENT_TYPES = new HashMap<>() {{
 		put("html", "text/html; charset=UTF-8");
@@ -28,13 +22,15 @@ public class HTTPResponse {
 		put("css", "text/css");
 	}};
 	private final Map<Integer, String> RESPONSE_TITLES = new HashMap<>() {{
-		put(404, "File Not Found");
+		put(200, "OK");
+		put(302, "Found");
 		put(403, "Forbidden");
+		put(404, "File Not Found");
 		put(500, "Internal Server Error");
 	}};
 	private final Map<Integer, String> RESPONSE_INFO = new HashMap<>() {{
-		put(404, "The page you're looking for does not exist");
 		put(403, "Access to this resource is forbidden");
+		put(404, "The page you're looking for does not exist");
 		put(500, "The server encountered an internal error");
 	}};
 
@@ -46,24 +42,29 @@ public class HTTPResponse {
 			// file format not suported
 			if(CONTENT_TYPES.get(fileEnding) == null)
 				rCode = 500;
-			else
+			else {
 				file = newFile;
+			}
 		}
+		CODE = rCode;
 
-		String title = RESPONSE_TITLES.get(rCode);
-		responseHeader = "HTTP/1.1 " + rCode + " " + title + "\r\n";
+		String title = RESPONSE_TITLES.get(CODE);
+		responseHeader = "HTTP/1.1 " + CODE + " " + title + "\r\n";
 		
-		// decide content type
-		if(rCode != 200)
+		// decide headers
+		if(CODE == 302) {
+			headers.add("Location: /");
+		}
+		else if(CODE != 200)
 			headers.add("Content-Type: text/html\r\n");
 		else {
 			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
 			headers.add("Content-Length: " + file.length());
-			// headers.add("Connection: close");
+			headers.add("Connection: close");
 		}
 
-		// make body if response is not 200
-		if(rCode != 200 && rCode != 302)
+		// make body if response is not 200 or 302
+		if(CODE != 200 && CODE != 302)
 			createBody(rCode);
 	}
 
@@ -96,23 +97,5 @@ public class HTTPResponse {
 		body += "<h1>" + code + "</h1><h2>" + title + "</h2>" + info + "<br><br><a href='/'>Go to index</a>";
 		body += "</div></body></html>";
 	}
-
-
-//	return	  "HTTP/1.1 200 OK\r\n"
-//	+ "Transfer-Encoding: chunked\r\n"
-//	+ "Date: Sat, 16 Feb 2019 20:03:22 CET\r\n"
-//	+ "Server: Bum server\r\n"
-//	+ "Connection: close\r\n"
-//	+ "X-Powered-By: W3 Total Cache/0.8\r\n"
-//	+ "Pragma: Public\r\n"
-//	+ "Expires: Sat, 28 Nov 2009 05:36:25 GMTr\n"
-//	+ "Etag: \"pub1259380237;gz\"\r\n"
-//	+ "Cache-Control: max-age=3600, public\r\n"
-//	+ "Content-Type: text/html; charset=UTF-8\r\n"
-//	+ "Last-Modified: Sat, 28 Nov 2009 03:50:37 GMT\r\n"
-//	+ "X-Pingback: localhost\r\n"
-//	+ "Content-Encoding: gzip\r\n"
-//	+ "Vary: Accept-Encoding, Cookie, User-Agent\r\n"
-//	+ "\r\n";
 
 }
