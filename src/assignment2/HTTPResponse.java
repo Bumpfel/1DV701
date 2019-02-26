@@ -17,7 +17,8 @@ public class HTTPResponse {
 	private String body;
 	private ArrayList<String> headers = new ArrayList<>();
 	private File file;
-	private Map<String, String> CONTENT_TYPES = new HashMap<>() {{
+
+	private final Map<String, String> CONTENT_TYPES = new HashMap<>() {{
 		put("html", "text/html; charset=UTF-8");
 		put("htm", "text/html; charset=UTF-8");
 		put("png", "image/png; charset=UTF-8");
@@ -26,12 +27,12 @@ public class HTTPResponse {
 		put("jpeg", "image/jpg");
 		put("css", "text/css");
 	}};
-	private Map<Integer, String> responseTitles = new HashMap<>() {{
+	private final Map<Integer, String> RESPONSE_TITLES = new HashMap<>() {{
 		put(404, "File Not Found");
 		put(403, "Forbidden");
 		put(500, "Internal Server Error");
 	}};
-	private Map<Integer, String> responseInfo = new HashMap<>() {{
+	private final Map<Integer, String> RESPONSE_INFO = new HashMap<>() {{
 		put(404, "The page you're looking for does not exist");
 		put(403, "Access to this resource is forbidden");
 		put(500, "The server encountered an internal error");
@@ -49,7 +50,7 @@ public class HTTPResponse {
 				file = newFile;
 		}
 
-		String title = responseTitles.get(rCode);
+		String title = RESPONSE_TITLES.get(rCode);
 		responseHeader = "HTTP/1.1 " + rCode + " " + title + "\r\n";
 		
 		// decide content type
@@ -57,72 +58,13 @@ public class HTTPResponse {
 			headers.add("Content-Type: text/html\r\n");
 		else {
 			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
-			// headers.add("Content-Length: " + file.length());
+			headers.add("Content-Length: " + file.length());
 			// headers.add("Connection: close");
 		}
 
 		// make body if response is not 200
 		if(rCode != 200 && rCode != 302)
 			createBody(rCode);
-	}
-
-	public static HTTPResponse createResponse(HTTPRequest request, String dirPath) throws HTTPException {
-	
-		File file = new File(dirPath + request.PATH);
-		if(request.METHOD == RequestMethod.GET) {
-			if(request.PATH.equals("/start"))
-				file = new File(dirPath + "index.html");
-			// change to index.htm if no index.html is found
-			if(!file.exists() && file.getName().equals("index.html"))
-				file = new File(dirPath + request.PATH.substring(0, request.PATH.length() - 1));
-			// 302 redirect
-			if(request.PATH.equals("/start"))
-				return new HTTPResponse(302, file);
-			// 404 file not found
-			if(!file.exists())
-				return new HTTPResponse(404, null);
-			// 403 forbidden
-			else if(request.PATH.startsWith("/forbidden"))
-				return new HTTPResponse(403, null);
-			// 200 ok
-			else
-				return new HTTPResponse(200, file);	
-		}
-		//File  upload (not working)
-		//TODO remove or fix
-		else if(request.METHOD == RequestMethod.POST) {
-			for(String header : request.HEADERS) {
-				if(header.startsWith("Content-Type: multipart/form-data")) {
-					String[] temp = header.split("=");
-					String boundary = temp[1];
-					String[] boundaryContent = request.ORG_STRING.split(boundary);
-
-					// System.out.println(content.length);
-					// System.out.println(content[2]);
-					String[] temp2 = boundaryContent[2].split("\\n");
-
-					String imageContent = new String();
-					for(int i = 3; i < temp2.length - 1; i ++) {
-						imageContent += temp2[i];
-					}
-
-					// Write file
-					try {
-						FileOutputStream fos = new FileOutputStream(new File("src/assignment2/upload/somefile.png"));
-						fos.write(imageContent.getBytes());
-						fos.flush();
-						fos.close();
-						break;
-					}
-					catch(IOException e) {
-						System.out.println("fehl fihl"); 
-					}
-				}
-			}
-			return null;
-		}
-		else
-			throw new HTTPException("Invalid or unimplemented request"); //TODO ought to be a 405?
 	}
 
 	public String getHeader() {
@@ -146,8 +88,8 @@ public class HTTPResponse {
 	}
 
 	private void createBody(int code) {
-		String info = responseInfo.get(code);
-		String title = responseTitles.get(code);
+		String info = RESPONSE_INFO.get(code);
+		String title = RESPONSE_TITLES.get(code);
 
 		body = "<html><head><link rel='stylesheet' href='/style.css'><title>" + code + " " + title + "</title></head>";
 		body += "<body class='r" + code + "'><div class='error'>";

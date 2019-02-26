@@ -1,36 +1,33 @@
 package assignment2;
 
-import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.util.Scanner;
 
 public class ClientThread extends Thread {
 
-	private BufferedReader in;
-    private InputStream in2; //TODO remove one of these. This is used for readInData()
-    private Scanner in3;
+	// private BufferedReader bufIn;
+    // private InputStream inStream; //TODO remove so there's only one of these inputstream objects. This is used for readInData()
+    // private Scanner scanIn;
 	private DataOutputStream out;
     private Socket socket;
     
-    private final String DIR_PATH = "src/assignment2/content/";
+	private final String CONTENT_PATH = "src/assignment2/content/";
+	private final int SOCKET_TIME_OUT = 10000;
 
 	public ClientThread(Socket socket) {
 		this.socket = socket;
 
 		try {
-			socket.setSoTimeout(10000);
-			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));			
+			socket.setSoTimeout(SOCKET_TIME_OUT);
+			// bufIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));	//TODO clean up		
 			out = new DataOutputStream(socket.getOutputStream());
 
-            in2 = socket.getInputStream();
-            in3 = new Scanner(socket.getInputStream());
+            // inStream = socket.getInputStream();
+            // scanIn = new Scanner(socket.getInputStream());
 		}
 		catch(IOException e) {
 			System.err.println(e.getMessage());
@@ -39,16 +36,17 @@ public class ClientThread extends Thread {
 
 	public void run() {
 		try {
-            // String inData = readInput();// TODO use one
-            String inData = readInData();
-            // String inData = readWithScanner();
+			RequestHandler reqHandler = new RequestHandler(socket.getInputStream());
+            String inData = reqHandler.readChars();// TODO use one
+            // String inData = reqHandler.readLines();
+            // String inData = reqHandler.readScanner();
             // System.out.print(inData); // TODO remove debug
-            
-            HTTPRequest request = HTTPRequest.parseRequest(inData);
+						
+            HTTPRequest request = reqHandler.parseRequest(inData);
             // System.out.println(request.METHOD + " request from " + socket.getInetAddress().toString().substring(1) + " for " + request.PATH.substring(1));
             if(request != null) {
 
-                HTTPResponse response = HTTPResponse.createResponse(request, DIR_PATH);
+				HTTPResponse response = new ResponseHandler().createResponse(request, CONTENT_PATH);
                 if(response != null)
                     writeResponse(response);
                 
@@ -60,73 +58,16 @@ public class ClientThread extends Thread {
         }
         catch(SocketTimeoutException e) {
         }
-		catch(HTTPException | IOException e) {
-            System.err.println(e.getMessage());
+		catch(Exception e) {
+			e.printStackTrace();
+            // System.err.println(e.getMessage());
 			try {
 				socket.close();
 			}
 			catch(IOException e2) {
 			}
-        }
+		}
 	}
-
-	private String readInData() throws IOException {
-		byte[] buffer = new byte[1500];
-		StringBuilder builder = new StringBuilder();		
-		// do {
-        while (in2.available() > 0) {
-            int read = in2.read(buffer, 0, buffer.length);
-            String str = new String(buffer, "ISO-8859-15").substring(0, read);
-            builder.append(str);
-        }
-		return builder.toString().trim();
-    }
-    
-    private String readWithScanner() {
-        String ret = new String();
-        int contentlength = 0;
-        in3.useDelimiter("\r\n");
-        while(in3.hasNext()) {
-            String read = in3.next();
-            ret += read + "\r\n";
-            if(read.isEmpty() || read == null) {
-                break;
-            }
-            System.out.println(read);
-            // if(read.startsWith("Content-Length")) {
-            //     contentlength = Integer.parseInt(read.substring(16));
-            // }
-
-        }
-        return ret;// + readBody(contentlength);
-    }
-	
-	private String readInput() throws IOException {
-        String line, requestString = new String();
-        int contentlength = 0; 
-        while(true) {
-            line = in.readLine();
-			requestString += line + "\r\n";
-            if (line == null || line.equals("") || line.equals("\r\n")) {
-                break;
-            }
-            if(line.startsWith("Content-Length")) {
-                contentlength = Integer.parseInt(line.substring(16));
-            }
-        }
-        // System.out.println(requestString);
-		return requestString;
-	}
-
-    //TODO from toll
-    private String readBody(int contentlength) throws IOException {
-		StringBuilder data = new StringBuilder();
-		for (int i = 0; i < contentlength; i++) {
-			data.append((char)in.read());
-        }
-		System.out.println(data.toString());
-		return data.toString();
-    }
     
 	/**
 	 * Writes header, and then either file if requested and response is 200, or a defined html body
