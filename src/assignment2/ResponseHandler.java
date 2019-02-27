@@ -3,95 +3,86 @@ package assignment2;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Base64;
+
 import assignment2.HTTPRequest.RequestMethod;
 
-/**
- * This class contains methods to read and parse a request
- */
 public class ResponseHandler {
+	private final String UPLOAD_SUCCESSFUL_PATH = "src/assignment2/responses/";
+	private final String CONTENT_PATH = "src/assignment2/content/";
+	private final String UPLOAD_PATH = "src/assignment2/uploads/";
+
     
-	public HTTPResponse createResponse(HTTPRequest request, String contentPath) throws HTTPException {
-	
-		File file = new File(contentPath + request.PATH);
+	public HTTPResponse createResponse(HTTPRequest request) throws HTTPException, ServerException {
+		// GET Request
 		if(request.METHOD == RequestMethod.GET) {
+			String URI = request.URI;
+			if(URI.endsWith("/")) { // set default file if path ends with a slash
+				URI += "index.html";
+			}
+			File file = new File(CONTENT_PATH + URI);
 			// change to index.htm if no index.html is found
-			if(!file.exists() && file.getName().equals("index.html"))
-				file = new File(contentPath + request.PATH.substring(0, request.PATH.length() - 1));
-			// 302 redirect
-			if(request.PATH.equals("/home"))
-				return new HTTPResponse(302, null);
-			// 404 file not found
-			if(!file.exists())
-				return new HTTPResponse(404, null);
+			if(!file.isFile() && file.getName().equals("index.html"))
+				file = new File(CONTENT_PATH + URI.substring(0, URI.length() - 1));
+			// 302 found (redirect)
+			if(request.URI.equals("/home"))
+				return new HTTPResponse(302, null, "/", null);
 			// 403 forbidden
-			else if(request.PATH.startsWith("/forbidden"))
-				return new HTTPResponse(403, null);
+			else if(request.URI.startsWith("/forbidden/"))
+				return new HTTPResponse(403, null, null, null);
+			// 404 file not found
+			if(!file.isFile())
+				return new HTTPResponse(404, null, null, null);
 			// 200 ok
 			else
-				return new HTTPResponse(200, file);	
+				return new HTTPResponse(200, file, null, null);
 		}
-		//File  upload (not working)
-		//TODO remove or fix
+		//POST Request
 		else if(request.METHOD == RequestMethod.POST) {
-			// System.out.println(request.ORG_STRING); // TODO debug
-			for(String header : request.HEADERS) {
-				if(header.startsWith("Content-Type: multipart/form-data")) {
-					String[] temp = header.split("=");
-					String boundary = temp[1];
-					String[] content = request.ORG_STRING.split(boundary);
-
-					String[] temp2 = content[2].split("\n");
-					
-					String binaryContent = new String();
-					for(int i = 3; i < temp2.length - 1; i ++) {
-						binaryContent += temp2[i];
-					}
-					
-					// Write file
-					try {
-						// System.out.println(binaryContent);
-
-						
-						// StringBuilder smt = new StringBuilder();
-						// for (int i = 0; i < binaryContent.length(); i++) {
-						// 	char ch = binaryContent.charAt(i);
+			try {
+				File uploadFile = findUniqueFileName(request);
 				
-						// 	if (ch == '%') {
-						// 		System.out.println(
-							// 		ch = (char) Integer.parseInt("" + binaryContent.charAt(i + 1) + binaryContent.charAt(i + 2), 16);
-							// 		i += 2;
-							// 	}
-							
-							// 	smt.append(ch);
-							// }
-							
-						// byte[] encodedBinaryContent = Base64.getMimeDecoder().decode(binaryContent.toString());
-						// fos.write(encodedBinaryContent);
-						
-						FileOutputStream fos = new FileOutputStream(new File("src/assignment2/upload/somefile.png"));
-						fos.write(binaryContent.getBytes());
-						// fos.flush();
-						fos.close();
+				// Write file
+				FileOutputStream fos = new FileOutputStream(uploadFile);
+				fos.write(request.DATA);
+				fos.close();
 
-
-						// return new HTTPResponse(200, new File("src/assignment2/content/upload.html"));
-						// break;
-						//TODO should return a response
-						
-					}
-					catch(IOException e) {
-						System.err.println("fehl fihl"); // TODO temp msg
-						System.err.println(e.getMessage());
-					}
-					catch(Exception e) {
-						e.printStackTrace();
-					}
-				}
+				return new HTTPResponse(200, new File(UPLOAD_SUCCESSFUL_PATH + "upload-successful.html"), null, uploadFile);
 			}
-			return null;
+			catch(IOException e) {
+				throw new ServerException("Could not receive file");
+			}
+			catch(NullPointerException | SecurityException e) {
+				throw new ServerException("Invalid POST request or internal error");
+			}
 		}
 		else
-			throw new HTTPException("Invalid or unimplemented request"); //TODO ought to be a 405?
-    }
+			throw new HTTPException("Invalid or unsupported request");
+	}
+	
+	private File findUniqueFileName(HTTPRequest request) throws NullPointerException, SecurityException {
+		// extract original name from request header
+		String fileName = new String();
+		for(String header : request.HEADERS) {
+			if(header.startsWith("Content-Disposition")) {
+				String[] tmp = header.split("filename=");
+				fileName = tmp[1].replaceAll("\"", "").trim();
+				break;
+			}
+		}
+
+		// ensure file name is unique by renaming file to "fileName (i).end"
+		File file =  new File(UPLOAD_PATH + fileName);
+		int i = 1;
+		while(file.isFile()) {
+			String[] f = fileName.split("\\.");
+			String fName = f[0], fEnd = "";
+			if(f.length > 1) {
+				fEnd = f[1];
+			}
+			file = new File(UPLOAD_PATH + fName + " (" + i + ")." + fEnd);
+			i ++;
+		}
+		return file;
+	}
+
 }

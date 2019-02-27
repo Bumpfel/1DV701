@@ -5,13 +5,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+@SuppressWarnings("serial") // suppress serializable warnings from the hashmaps
+
 public class HTTPResponse {
 	private String responseHeader;
 	private String body;
 	private ArrayList<String> headers = new ArrayList<>();
 	private File file;
+	public final File UPLOADED_FILE;
 	public final int CODE;
-
+	
 	private final Map<String, String> CONTENT_TYPES = new HashMap<>() {{
 		put("html", "text/html; charset=UTF-8");
 		put("htm", "text/html; charset=UTF-8");
@@ -21,6 +24,7 @@ public class HTTPResponse {
 		put("jpeg", "image/jpg");
 		put("css", "text/css");
 	}};
+
 	private final Map<Integer, String> RESPONSE_TITLES = new HashMap<>() {{
 		put(200, "OK");
 		put(302, "Found");
@@ -28,23 +32,27 @@ public class HTTPResponse {
 		put(404, "File Not Found");
 		put(500, "Internal Server Error");
 	}};
+	
 	private final Map<Integer, String> RESPONSE_INFO = new HashMap<>() {{
 		put(403, "Access to this resource is forbidden");
 		put(404, "The page you're looking for does not exist");
 		put(500, "The server encountered an internal error");
 	}};
 
-	public HTTPResponse(int rCode, File newFile) throws HTTPException {
+
+	public HTTPResponse(int rCode, File newFile, String redirectLocation, File uploadFile) throws HTTPException {
+		UPLOADED_FILE = uploadFile;
+		
 		String fileEnding = new String();
+		// check file format
 		if(newFile != null) {
 			int dotPos = newFile.getName().lastIndexOf(".");
 			fileEnding = newFile.getName().substring(dotPos + 1);
 			// file format not suported
 			if(CONTENT_TYPES.get(fileEnding) == null)
 				rCode = 500;
-			else {
+			else
 				file = newFile;
-			}
 		}
 		CODE = rCode;
 
@@ -53,7 +61,7 @@ public class HTTPResponse {
 		
 		// decide headers
 		if(CODE == 302) {
-			headers.add("Location: /");
+			headers.add("Location: " + redirectLocation);
 		}
 		else if(CODE != 200)
 			headers.add("Content-Type: text/html\r\n");
@@ -91,11 +99,16 @@ public class HTTPResponse {
 	private void createBody(int code) {
 		String info = RESPONSE_INFO.get(code);
 		String title = RESPONSE_TITLES.get(code);
+		StringBuilder temp = new StringBuilder();
 
-		body = "<html><head><link rel='stylesheet' href='/style.css'><title>" + code + " " + title + "</title></head>";
-		body += "<body class='r" + code + "'><div class='error'>";
-		body += "<h1>" + code + "</h1><h2>" + title + "</h2>" + info + "<br><br><a href='/'>Go to index</a>";
-		body += "</div></body></html>";
+		temp.append("<html>");
+		temp.append("<head><link rel='stylesheet' href='/style.css'><title>" + code + " " + title + "</title></head>");
+		temp.append("<body class='r" + code + "'>");
+		temp.append("<div class='error'><h1>" + code + "</h1><h2>" + title + "</h2>" + info + "<br><br><a href='/'>Go to index</a></div>");
+		temp.append("</body>");
+		temp.append("</html>");
+
+		body = temp.toString();
 	}
 
 }

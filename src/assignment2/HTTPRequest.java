@@ -1,20 +1,18 @@
 package assignment2;
 
-import java.util.Arrays;
-
 public class HTTPRequest {
 	public final String[] HEADERS;
-	public final String PATH;
+	public final String URI;
 	public final RequestMethod METHOD;
-	public final String ORG_STRING; //TODO debug?
+	public final byte[] DATA;
 	
-	public enum RequestMethod { GET, POST }; // TODO remove POST if not implemented
+	public enum RequestMethod { GET, POST };
 	
-	HTTPRequest(String requestString, String[] newHeaders, String path, RequestMethod method) {
+	HTTPRequest(String[] newHeaders, String uri, RequestMethod method, byte[] data) {
 		HEADERS = newHeaders;
-		PATH = path;
+		URI = uri;
 		METHOD = method;
-		ORG_STRING = requestString;
+		DATA = data;
 	}
 
 }

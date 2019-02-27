@@ -13,17 +13,14 @@ public class WebServer {
 	}
 
 	public void startServer() {
-		try {
-			try(ServerSocket serverSocket = new ServerSocket(MYPORT)) {
-				System.out.print("Server started on port " + serverSocket.getLocalPort() + ". ");
-				System.out.println();
+		try(ServerSocket serverSocket = new ServerSocket(MYPORT)) {
+			System.out.print("Server started on port " + serverSocket.getLocalPort() + ". ");
+			System.out.println();
 
-				while (true) {
-					Socket clientSocket = serverSocket.accept();
+			while (true) {
+				Socket clientSocket = serverSocket.accept();
 
-					ClientThread clientThread = new ClientThread(clientSocket);
-					clientThread.start();
-				}
+				new ServerThread(clientSocket).start();
 			}
 		}
 		catch(IOException e) {
