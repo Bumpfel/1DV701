@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,20 +44,19 @@ public class HTTPResponse {
 	}};
 
 
-	public HTTPResponse(int rCode, File newFile, String redirectLocation, File uploadFile) throws HTTPException {
+	public HTTPResponse(int rCode, File newFile, String redirectLocation, File uploadFile) throws RequestException {
 		UPLOADED_FILE = uploadFile;
 		
-		String fileEnding = new String();
+		String fileEnding = new String(); // TODO don't do this here. do it in responsehandler. do need fileending here tho 
 		// check file format
 		if(newFile != null) {
 			int dotPos = newFile.getName().lastIndexOf(".");
 			fileEnding = newFile.getName().substring(dotPos + 1);
 			// file format not suported
 			if(CONTENT_TYPES.get(fileEnding) == null)
-				rCode = 500;
-			else
-				file = newFile;
+				throw new RequestException("415: Unsupported Media Type");
 		}
+		file = newFile;
 		CODE = rCode;
 
 		String title = RESPONSE_TITLES.get(CODE);
@@ -95,6 +95,14 @@ public class HTTPResponse {
 		return file;
 	}
 
+	public void printStatus(Socket socket) {
+		System.out.println("Sent " + file.getName() + " (" +  file.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
+	}
+
+	public void printPOSTStatus() {
+		System.out.println("Received " + UPLOADED_FILE.getName() + " (" + UPLOADED_FILE.length() + " B)");
+	}
+
 	private void createBody(int code) {
 		String info = RESPONSE_INFO.get(code);
 		String title = RESPONSE_TITLES.get(code);
@@ -114,23 +122,22 @@ public class HTTPResponse {
 	 * Writes header, and then either file requested in case of a 200 response, or a defined html body unless it's a redirect response (3xx)
 	 * @param out 
 	 */
-	public void writeResponse(OutputStream out) throws IOException {
+	public void sendResponse(OutputStream out) throws IOException {
 		out.write(getHeader().getBytes());
 		if(CODE == 200) {
 			writeFile(file, out);
-			return;
 		}
-		if(CODE == 201) {
+		else if(CODE == 201) {
 			insertIntoBody("</form>", "<br><span style='color:#080; font-weight:bold'>" + UPLOADED_FILE.getName() + " uploaded successfully</span>");
 		}
 		// write html body if it's not a redirect code (3xx)
-		if(!("" + CODE).startsWith("3")) {
+		else if(!("" + CODE).startsWith("3")) {
 			out.write(body.getBytes());
 		}
 	}
 
 	private void writeFile(File file, OutputStream out) throws IOException {
-		byte[] buf = new byte[1024];
+		byte[] buf = new byte[WebServer.FILE_BUFFER_SIZE];
 		
 		FileInputStream fileIn = new FileInputStream(file);
 		int bytesRead;

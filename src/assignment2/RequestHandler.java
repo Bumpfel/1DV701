@@ -2,21 +2,18 @@ package assignment2;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.Socket;
 import java.util.ArrayList;
 
 import assignment2.HTTPRequest.RequestMethod;
 
 public class RequestHandler {
     private InputStream inputStream;
-    private Socket socket;
 
-    public RequestHandler(Socket socket) throws IOException {
-        inputStream = socket.getInputStream();
-        this.socket = socket;
+    public RequestHandler(InputStream in) throws IOException {
+        inputStream = in;
     }
 
-    public HTTPRequest readRequest() throws IOException, ServerException, HTTPException {
+    public HTTPRequest readRequest() throws IOException, ServerException, RequestException {
         return parseRequest(readHeaders(), readBytes());
     }
 
@@ -35,7 +32,7 @@ public class RequestHandler {
             if((char) read == '\n') { 
                 headers.add(line.toString()); // add line to headers
 
-                //looks for the second empty line. that is the boundary between headers and binary data under a post request 
+                // looks for the second empty line. that is the boundary between headers and binary data under a post request 
                 if(line.toString().trim().isEmpty()) {
                     if(emptyLineFound)
                         break;
@@ -57,6 +54,7 @@ public class RequestHandler {
         ArrayList<Byte> tmpBytes = new ArrayList<>();
         int foundEOFBytes = 0;
         int[] eof = { 13, 10, 45, 45 };
+
         while(inputStream.available() > 0) {
             int i = inputStream.read();
             tmpBytes.add((byte) i);
@@ -71,16 +69,14 @@ public class RequestHandler {
             if(foundEOFBytes == 4)
                 break;
         }
-        //... and removes them (only 3 bytes were added to the array list)
+        //... and removes them
         int n = tmpBytes.size();
         if(n >= 4) {
-            tmpBytes.remove(-- n);
-            tmpBytes.remove(-- n);
-            tmpBytes.remove(-- n);
-            tmpBytes.remove(-- n);
+            for(int i = 0; i < 4; i ++)
+                tmpBytes.remove(-- n);
         }
 
-        // convert to primitive type array
+        // convert to primitive type array since that is what the fileoutputstream will want
         byte[] bytes = new byte[tmpBytes.size()];
         for(int i = 0; i < tmpBytes.size(); i ++) {
             bytes[i] = tmpBytes.get(i);
@@ -88,31 +84,30 @@ public class RequestHandler {
         return bytes;
     }
 
-	private HTTPRequest parseRequest(ArrayList<String> headers, byte[] binaryData) throws HTTPException, ServerException {
+	private HTTPRequest parseRequest(ArrayList<String> headers, byte[] binaryData) throws RequestException, ServerException {
         if(headers.isEmpty())
-            throw new HTTPException("Empty request");
-        else {
-            // Checks that requestLine contains 3 segments
-            String[] requestLine = headers.get(0).split(" ");
-            if(requestLine.length != 3)
-                throw new HTTPException("Invalid request");
+            throw new RequestException("400: Bad Request - Request empty");
+        
+        // Checks that requestLine contains 3 segments
+        String[] requestLine = headers.get(0).split(" ");
+        if(requestLine.length != 3)
+            throw new RequestException("400: Bad Request");
 
-            if(!requestLine[2].contains("HTTP/1.1"))
-                throw new HTTPException("HTTP version of request not supported");
+        if(!requestLine[2].trim().equals("HTTP/1.1"))
+            throw new ServerException("505: HTTP Version Not Supported");
 
-            // check if method is supported
-            RequestMethod method;
-            try {
-                method = RequestMethod.valueOf(requestLine[0]);
-            }
-            catch(IllegalArgumentException e) {
-                throw new ServerException("Method not supported"); //TODO make 405?
-            }
-
-            String URI = requestLine[1];
-            
-            return new HTTPRequest(headers.toArray(new String[headers.size()]), URI, method, binaryData, socket.getInetAddress().toString().substring(1));
+        // check if method is supported. case-sensitive
+        RequestMethod method;
+        try {
+            method = RequestMethod.valueOf(requestLine[0]);
         }
+        catch(IllegalArgumentException e) {
+            throw new RequestException("405: Method Not Allowed");
+        }
+
+        String URI = requestLine[1];
+        
+        return new HTTPRequest(headers, URI, method, binaryData);
     }
-    
+        
 }

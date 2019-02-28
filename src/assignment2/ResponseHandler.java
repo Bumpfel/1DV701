@@ -1,28 +1,27 @@
 package assignment2;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
 import assignment2.HTTPRequest.RequestMethod;
 
 public class ResponseHandler {
-	private final String CONTENT_PATH = "src/assignment2/content/";
-	private final String UPLOAD_PATH = "src/assignment2/uploads/";
 
-	public HTTPResponse createResponse(HTTPRequest request) throws HTTPException, ServerException {
+	public HTTPResponse createResponse(HTTPRequest request) throws RequestException, ServerException {
 		// GET Request
 		if(request.METHOD == RequestMethod.GET) {
 			String URI = request.URI;
-			if(URI.endsWith("/")) { // set default file if path ends with a slash
+			if(URI.endsWith("/")) // set default file if path ends with a slash
 				URI += "index.html";
-			}
-			File file = new File(CONTENT_PATH + URI);
+			File file = new File(WebServer.CONTENT_PATH + URI);
+
 			// change to index.htm if no index.html is found
 			if(!file.isFile() && file.getName().equals("index.html"))
-				file = new File(CONTENT_PATH + URI.substring(0, URI.length() - 1));
+				file = new File(WebServer.CONTENT_PATH + URI.substring(0, URI.length() - 1));
 			// 302 found (redirect)
-			if(request.URI.equals("/home"))
+			if(request.URI.equals("/home/"))
 				return new HTTPResponse(302, null, "/", null);
 			// 403 forbidden
 			else if(request.URI.startsWith("/forbidden/"))
@@ -44,19 +43,20 @@ public class ResponseHandler {
 				fos.write(request.DATA);
 				fos.close();
 
-				return new HTTPResponse(201, new File(CONTENT_PATH + request.URI), null, uploadFile);
+				return new HTTPResponse(201, new File(WebServer.CONTENT_PATH + request.URI), null, uploadFile);
 			}
-			catch(IOException e) {
-				// return null;
+			catch(FileNotFoundException e) {
+				return new HTTPResponse(500, null , null, null);
+			}
+			catch(IOException e) { //TODO not sure this is the correct response
 				return new HTTPResponse(302, null, "/upload.html", null); // can happen if client clicks upload with empty file and expects a response
-				// throw new ServerException("Could not receive file"); // TODO happens if one clicks the button with no file selected
 			}
-			catch(NullPointerException | SecurityException e) {
-				throw new ServerException("Invalid POST request or internal error");
+			catch(NullPointerException e) {
+				return new HTTPResponse(500, null , null, null); // will only happen if file string is null
 			}
 		}
 		else
-			throw new HTTPException("Invalid or unsupported request");
+			throw new RequestException("405: Method Not Allowed");
 	}
 	
 	private File findUniqueFileName(HTTPRequest request) throws NullPointerException, SecurityException {
@@ -70,17 +70,17 @@ public class ResponseHandler {
 			}
 		}
 
-		// ensure file name is unique by renaming file to "fileName (i).end"
-		File file =  new File(UPLOAD_PATH + fileName);
-		int i = 1;
+		// ensure file name is unique by renaming file to "fileName (n).end"
+		File file =  new File(WebServer.UPLOAD_PATH + fileName);
+		int n = 1;
 		while(file.isFile()) {
 			String[] f = fileName.split("\\.");
 			String fName = f[0], fEnd = "";
 			if(f.length > 1) {
 				fEnd = f[1];
 			}
-			file = new File(UPLOAD_PATH + fName + " (" + i + ")." + fEnd);
-			i ++;
+			file = new File(WebServer.UPLOAD_PATH + fName + " (" + n + ")." + fEnd);
+			n ++;
 		}
 		return file;
 	}
