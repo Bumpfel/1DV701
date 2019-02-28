@@ -1,6 +1,9 @@
 package assignment2;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,7 +21,7 @@ public class HTTPResponse {
 	private final Map<String, String> CONTENT_TYPES = new HashMap<>() {{
 		put("html", "text/html; charset=UTF-8");
 		put("htm", "text/html; charset=UTF-8");
-		put("png", "image/png; charset=UTF-8");
+		put("png", "image/png");
 		put("gif", "image/gif");
 		put("jpg", "image/jpg");
 		put("jpeg", "image/jpg");
@@ -71,8 +74,8 @@ public class HTTPResponse {
 			headers.add("Connection: close");
 		}
 
-		// make body if response is not 200 or 302
-		if(CODE != 200 && CODE != 302)
+		// create an html body instead of reading from a file if its an error response
+		if(CODE == 403 || CODE == 404 || CODE == 500)
 			createBody(rCode);
 	}
 
@@ -91,10 +94,6 @@ public class HTTPResponse {
 	public File getFile() {
 		return file;
 	}
-	
-	public String getBody() {
-		return body;
-	}
 
 	private void createBody(int code) {
 		String info = RESPONSE_INFO.get(code);
@@ -109,6 +108,63 @@ public class HTTPResponse {
 		temp.append("</html>");
 
 		body = temp.toString();
+	}
+
+	/**
+	 * Writes header, and then either file requested in case of a 200 response, or a defined html body unless it's a redirect response (3xx)
+	 * @param out 
+	 */
+	public void writeResponse(OutputStream out) throws IOException {
+		out.write(getHeader().getBytes());
+		if(CODE == 200) {
+			writeFile(file, out);
+			return;
+		}
+		if(CODE == 201) {
+			insertIntoBody("</form>", "<br><span style='color:#080; font-weight:bold'>" + UPLOADED_FILE.getName() + " uploaded successfully</span>");
+		}
+		// write html body if it's not a redirect code (3xx)
+		if(!("" + CODE).startsWith("3")) {
+			out.write(body.getBytes());
+		}
+	}
+
+	private void writeFile(File file, OutputStream out) throws IOException {
+		byte[] buf = new byte[1024];
+		
+		FileInputStream fileIn = new FileInputStream(file);
+		int bytesRead;
+		while((bytesRead = fileIn.read(buf)) > 0) {
+			out.write(buf, 0, bytesRead);
+		}
+		fileIn.close();
+	}
+	
+	/**
+	 * reads an html (text) file to string in order to alter the content. used to print successful upload message
+	 */
+	private void insertIntoBody(String afterTag, String insertString) throws IOException {
+		// read file to String
+		byte[] buf = new byte[1024];
+		StringBuilder builder = new StringBuilder();
+
+		FileInputStream fileIn = new FileInputStream(file);
+		int bytesRead;
+		while((bytesRead = fileIn.read(buf)) > 0) {
+			builder.append(new String(buf, 0, bytesRead));
+		}
+		body = builder.toString();
+		fileIn.close();
+
+		// insert string
+		String[] rows = body.split(afterTag);
+		rows[0] += insertString;
+
+		// piece together body again
+		body = "";
+		for(String row : rows) {
+			body += row;
+		}
 	}
 
 }

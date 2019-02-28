@@ -24,7 +24,7 @@ public class WebServer {
 			}
 		}
 		catch(IOException e) {
-			System.out.println(e.getMessage());
+			System.err.println(e.getMessage());
 		}
 	}
 }

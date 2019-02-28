@@ -7,11 +7,9 @@ import java.io.IOException;
 import assignment2.HTTPRequest.RequestMethod;
 
 public class ResponseHandler {
-	private final String UPLOAD_SUCCESSFUL_PATH = "src/assignment2/responses/";
 	private final String CONTENT_PATH = "src/assignment2/content/";
 	private final String UPLOAD_PATH = "src/assignment2/uploads/";
 
-    
 	public HTTPResponse createResponse(HTTPRequest request) throws HTTPException, ServerException {
 		// GET Request
 		if(request.METHOD == RequestMethod.GET) {
@@ -46,10 +44,12 @@ public class ResponseHandler {
 				fos.write(request.DATA);
 				fos.close();
 
-				return new HTTPResponse(200, new File(UPLOAD_SUCCESSFUL_PATH + "upload-successful.html"), null, uploadFile);
+				return new HTTPResponse(201, new File(CONTENT_PATH + request.URI), null, uploadFile);
 			}
 			catch(IOException e) {
-				throw new ServerException("Could not receive file");
+				// return null;
+				return new HTTPResponse(302, null, "/upload.html", null); // can happen if client clicks upload with empty file and expects a response
+				// throw new ServerException("Could not receive file"); // TODO happens if one clicks the button with no file selected
 			}
 			catch(NullPointerException | SecurityException e) {
 				throw new ServerException("Invalid POST request or internal error");
