@@ -9,7 +9,7 @@ public class HTTPRequest {
 	public final RequestMethod METHOD;
 	public final byte[] DATA;
 	
-	public enum RequestMethod { GET, POST };
+	public enum RequestMethod { GET, POST, PUT };
 	
 	HTTPRequest(ArrayList<String> newHeaders, String uri, RequestMethod method, byte[] data) {
 		HEADERS = newHeaders;

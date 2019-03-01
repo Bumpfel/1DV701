@@ -33,11 +33,20 @@ public class ResponseHandler {
 			else
 				return new HTTPResponse(200, file, null, null);
 		}
-		//POST Request
-		else if(request.METHOD == RequestMethod.POST) {
+		// POST Request
+		else if(request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT) {
 			try {
-				File uploadFile = findUniqueFileName(request);
-				
+				File uploadFile;
+
+				for(String header : request.HEADERS)
+					System.out.println(header);
+				System.out.println(request.DATA.length + " B");
+
+				if(request.METHOD == RequestMethod.POST)
+					uploadFile = new File(WebServer.UPLOAD_PATH + findUniqueUploadFileName(request));
+				else
+					uploadFile = new File(WebServer.UPLOAD_PATH + getUploadFileName(request));
+
 				// Write file
 				FileOutputStream fos = new FileOutputStream(uploadFile);
 				fos.write(request.DATA);
@@ -59,17 +68,9 @@ public class ResponseHandler {
 			throw new RequestException("405: Method Not Allowed");
 	}
 	
-	private File findUniqueFileName(HTTPRequest request) throws NullPointerException, SecurityException {
-		// extract original name from request header
-		String fileName = new String();
-		for(String header : request.HEADERS) {
-			if(header.startsWith("Content-Disposition")) {
-				String[] tmp = header.split("filename=");
-				fileName = tmp[1].replaceAll("\"", "").trim();
-				break;
-			}
-		}
-
+	private String findUniqueUploadFileName(HTTPRequest request) throws NullPointerException, SecurityException {
+		String fileName = getUploadFileName(request);
+		
 		// ensure file name is unique by renaming file to "fileName (n).end"
 		File file =  new File(WebServer.UPLOAD_PATH + fileName);
 		int n = 1;
@@ -82,7 +83,20 @@ public class ResponseHandler {
 			file = new File(WebServer.UPLOAD_PATH + fName + " (" + n + ")." + fEnd);
 			n ++;
 		}
-		return file;
+		return file.getName();
+	}
+
+	private String getUploadFileName(HTTPRequest request) {
+		String fileName = new String();
+		for(String header : request.HEADERS) {
+			if(header.startsWith("Content-Disposition")) {
+				String[] tmp = header.split("filename=");
+				fileName = tmp[1].replaceAll("\"", "").trim();
+				break;
+			}
+		}
+		return fileName;
+
 	}
 
 }

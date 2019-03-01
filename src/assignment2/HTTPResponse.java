@@ -31,6 +31,7 @@ public class HTTPResponse {
 
 	private final Map<Integer, String> RESPONSE_TITLES = new HashMap<>() {{
 		put(200, "OK");
+		put(201, "Created");
 		put(302, "Found");
 		put(403, "Forbidden");
 		put(404, "File Not Found");
@@ -66,11 +67,11 @@ public class HTTPResponse {
 		if(CODE == 302) {
 			headers.add("Location: " + redirectLocation);
 		}
-		else if(CODE != 200)
+		else if(CODE != 200 && CODE != 201)
 			headers.add("Content-Type: text/html\r\n");
 		else {
 			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
-			headers.add("Content-Length: " + file.length());
+			// headers.add("Content-Length: " + file.length());
 			headers.add("Connection: close");
 		}
 
@@ -96,11 +97,11 @@ public class HTTPResponse {
 	}
 
 	public void printStatus(Socket socket) {
-		System.out.println("Sent " + file.getName() + " (" +  file.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
+		System.out.println("RESPONSE " + CODE + " " + RESPONSE_TITLES.get(CODE) + " " + file.getName() + " (" +  file.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
 	}
 
-	public void printPOSTStatus() {
-		System.out.println("Received " + UPLOADED_FILE.getName() + " (" + UPLOADED_FILE.length() + " B)");
+	public void printPostPutStatus() {
+		System.out.println("-Received " + UPLOADED_FILE.getName() + " (" + UPLOADED_FILE.length() + " B)");
 	}
 
 	private void createBody(int code) {
@@ -126,12 +127,13 @@ public class HTTPResponse {
 		out.write(getHeader().getBytes());
 		if(CODE == 200) {
 			writeFile(file, out);
+			return;
 		}
-		else if(CODE == 201) {
+		if(CODE == 201) {
 			insertIntoBody("</form>", "<br><span style='color:#080; font-weight:bold'>" + UPLOADED_FILE.getName() + " uploaded successfully</span>");
 		}
 		// write html body if it's not a redirect code (3xx)
-		else if(!("" + CODE).startsWith("3")) {
+		if(!("" + CODE).startsWith("3")) {
 			out.write(body.getBytes());
 		}
 	}

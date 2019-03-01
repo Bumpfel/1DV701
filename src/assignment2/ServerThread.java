@@ -14,21 +14,19 @@ public class ServerThread extends Thread {
 		this.socket = socket;
 	}
 
-	public void run() { //TODO better 500
+	public void run() {
         try {
-			RequestHandler reqHandler = new RequestHandler(socket.getInputStream());
-			HTTPRequest request = reqHandler.readRequest();
-
+			HTTPRequest request = new RequestHandler(socket.getInputStream()).readRequest();
 			request.printStatus(socket);
 
 			HTTPResponse response = new ResponseHandler().createResponse(request);
 			response.sendResponse(socket.getOutputStream());
 			
-			// print info about received file if it was a post request
-			if(request.METHOD == RequestMethod.POST && response.UPLOADED_FILE != null)
-				response.printPOSTStatus();
+			// print info about received file if it was a post or put request
+			if((request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT) && response.UPLOADED_FILE != null)
+				response.printPostPutStatus();
 			
-			//a file was sent
+			// print response status if a file was sent
 			if(response.getFile() != null)
 				response.printStatus(socket);
 			
