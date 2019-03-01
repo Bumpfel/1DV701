@@ -5,6 +5,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 
 import assignment2.HTTPRequest.RequestMethod;
+import assignment2.responses.HTTPResponse;
 
 public class ServerThread extends Thread {
 
@@ -23,7 +24,7 @@ public class ServerThread extends Thread {
 			response.sendResponse(socket.getOutputStream());
 			
 			// print info about received file if it was a post or put request
-			if((request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT) && response.UPLOADED_FILE != null)
+			if((request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT) && response.getUploadedFile() != null)
 				response.printPostPutStatus();
 			
 			// print response status if a file was sent
@@ -36,6 +37,7 @@ public class ServerThread extends Thread {
 			System.err.println("408: Request timed out");
 		}
 		catch(Exception e) {
+			e.printStackTrace(); // TODO debug stacktrace
             System.err.println(e.getMessage());
 			try {
 				socket.close();

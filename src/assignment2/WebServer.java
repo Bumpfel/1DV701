@@ -8,7 +8,7 @@ public class WebServer {
 	private final int MYPORT = 9000;
 	final static String CONTENT_PATH = "src/assignment2/content/";
 	final static String UPLOAD_PATH = "src/assignment2/uploads/";
-	final static int FILE_BUFFER_SIZE = 8192;
+	public final static int FILE_BUFFER_SIZE = 8192;
 
 	public static void main(String[] args) {
 		WebServer tcpServer = new WebServer();
