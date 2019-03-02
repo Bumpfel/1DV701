@@ -3,7 +3,6 @@ package assignment2;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Scanner;
 
 import assignment2.HTTPRequest.RequestMethod;
 
@@ -16,37 +15,13 @@ public class RequestHandler {
     }
 
     public HTTPRequest readRequest() throws IOException, ServerException, RequestException {
-        return parseRequest(readHeaders(), readBytes());
+        ArrayList<String> headers = readHeaders();
+        byte[] data = null;
+        if(inputStream.available() > 0)
+            data = readData();
+        return parseRequest(headers, data);
     }
-
-    //TODO test read all
-    public String readAll() throws IOException {
-        StringBuilder builder = new StringBuilder();
-        do {
-            int read = inputStream.read();
-            builder.append((char) read);
-        }
-        while(inputStream.available() > 0);
-        return builder.toString();
-    }
-
-    //TODO test read scanner
-    public String readScanner() {
-        Scanner sc = new Scanner(inputStream);
-        sc.useDelimiter("\r\n\r\n");
-        StringBuilder builder = new StringBuilder();
-
-        String readString;
-        if(sc.hasNext()) {
-            readString = sc.next();
-            System.out.println(readString); //TODO debug print 
-            builder.append(readString);
-        }
-        System.out.println("scanner done");
-
-        return builder.toString();
-    }
-
+    
     /**
      * Reads the headers of the request
      */
@@ -80,28 +55,28 @@ public class RequestHandler {
     }
 
     /**
-     * To read the binary data for POST requests
+     * To read the binary data for POST and PUT requests
      */
-    private byte[] readBytes() throws IOException {
+    public byte[] readData() throws IOException {
         // reading to array list to avoid manual re-size
         ArrayList<Byte> tmpBytes = new ArrayList<>();
         int foundEOFBytes = 0;
         int[] eof = { 13, 10, 45, 45 };
-
-        while(inputStream.available() > 0) {
+        do {
             int i = inputStream.read();
             tmpBytes.add((byte) i);
-
+            
             //TODO fullösning
             //searches for the 4 end of file bytes
             if(i == eof[foundEOFBytes])
-                foundEOFBytes ++;
+            foundEOFBytes ++;
             else
-                foundEOFBytes = 0;
+            foundEOFBytes = 0;
             // breaks read if eof is found
             if(foundEOFBytes == 4)
-                break;
+            break;
         }
+        while(inputStream.available() > 0);
         //... and removes them
         int n = tmpBytes.size();
         for(int i = 0; i < foundEOFBytes; i ++) //TODO (small) logic could be improved 
@@ -117,16 +92,17 @@ public class RequestHandler {
     }
 
 	private HTTPRequest parseRequest(ArrayList<String> headers, byte[] binaryData) throws RequestException, ServerException {
+        //TODO uploading from html form sometimes creates an empty request. thread seems to be still running when it happens
         if(headers.isEmpty())
-        throw new RequestException("400: Bad Request - Request empty");
+            throw new RequestException("400: Bad Request - Request empty");
         
         // Checks that requestLine contains 3 segments
         String[] requestLine = headers.get(0).split(" ");
         if(requestLine.length != 3)
-        throw new RequestException("400: Bad Request");
+            throw new RequestException("400: Bad Request");
 
         if(!requestLine[2].trim().equals("HTTP/1.1"))
-        throw new ServerException("505: HTTP Version Not Supported");
+            throw new ServerException("505: HTTP Version Not Supported");
         
         // check if method is supported. case-sensitive
         RequestMethod method;
@@ -138,8 +114,6 @@ public class RequestHandler {
         }
         
         String URI = requestLine[1];
-        
-        boolean containsFormData = false; // TODO need to know this before object creation. remove this and parameter?
         
         return new HTTPRequest(headers, URI, method, binaryData);
     }

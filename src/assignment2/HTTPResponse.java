@@ -9,15 +9,18 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import assignment2.RequestException;
+import assignment2.WebServer;
+
 @SuppressWarnings("serial") // suppress serializable warnings from the hashmaps
 
 public class HTTPResponse {
 	private String responseHeader;
 	private String body;
 	private ArrayList<String> headers = new ArrayList<>();
-	private File file;
-	public final File UPLOADED_FILE;
-	public final int CODE;
+	final File FILE;
+	final File UPLOADED_FILE;
+	final int CODE;
 	
 	private final Map<String, String> CONTENT_TYPES = new HashMap<>() {{
 		put("html", "text/html; charset=UTF-8");
@@ -27,9 +30,11 @@ public class HTTPResponse {
 		put("jpg", "image/jpg");
 		put("jpeg", "image/jpg");
 		put("css", "text/css");
+		put("txt", "text/plain");
 	}};
 
 	private final Map<Integer, String> RESPONSE_TITLES = new HashMap<>() {{
+		put(100, "Continue");
 		put(200, "OK");
 		put(201, "Created");
 		put(302, "Found");
@@ -44,10 +49,10 @@ public class HTTPResponse {
 		put(500, "The server encountered an internal error");
 	}};
 
-
 	public HTTPResponse(int rCode, File newFile, String redirectLocation, File uploadFile) throws RequestException {
 		UPLOADED_FILE = uploadFile;
 		
+		//TODO generally messy
 		String fileEnding = new String(); // TODO don't do this here. do it in responsehandler. do need fileending here tho 
 		// check file format
 		if(newFile != null) {
@@ -57,30 +62,32 @@ public class HTTPResponse {
 			if(CONTENT_TYPES.get(fileEnding) == null)
 				throw new RequestException("415: Unsupported Media Type");
 		}
-		file = newFile;
+		FILE = newFile;
 		CODE = rCode;
 
 		String title = RESPONSE_TITLES.get(CODE);
 		responseHeader = "HTTP/1.1 " + CODE + " " + title + "\r\n";
 		
 		// decide headers
-		if(CODE == 302) {
+		if(CODE == 302)
 			headers.add("Location: " + redirectLocation);
+		else if(CODE != 200 && CODE != 201) {
+			headers.add("Content-Type: text/html");
 		}
-		else if(CODE != 200 && CODE != 201)
-			headers.add("Content-Type: text/html\r\n");
-		else {
+		else if(CODE != 100) {
 			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
-			// headers.add("Content-Length: " + file.length());
+			// if(file != null)
+			// 	headers.add("Content-Length: " + file.length());
 			headers.add("Connection: close");
 		}
 
 		// create an html body instead of reading from a file if its an error response
-		if(CODE == 403 || CODE == 404 || CODE == 500)
+		if(CODE == 403 || CODE == 404 || CODE == 500) {
 			createBody(rCode);
+		}
 	}
 
-	public String getHeader() {
+	public String getHeaders() {
 		StringBuilder strB = new StringBuilder();
 		
 		strB.append(responseHeader);
@@ -92,12 +99,8 @@ public class HTTPResponse {
 		return new String(strB);
 	}
 
-	public File getFile() {
-		return file;
-	}
-
 	public void printStatus(Socket socket) {
-		System.out.println("RESPONSE " + CODE + " " + RESPONSE_TITLES.get(CODE) + " " + file.getName() + " (" +  file.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
+		System.out.println("RESPONSE " + CODE + " " + RESPONSE_TITLES.get(CODE) + " " + FILE.getName() + " (" +  FILE.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
 	}
 
 	public void printPostPutStatus() {
@@ -124,16 +127,20 @@ public class HTTPResponse {
 	 * @param out 
 	 */
 	public void sendResponse(OutputStream out) throws IOException {
-		out.write(getHeader().getBytes());
+		out.write(getHeaders().getBytes());
 		if(CODE == 200) {
-			writeFile(file, out);
+			writeFile(FILE, out);
 			return;
 		}
-		if(CODE == 201) {
+		if(CODE == 201) { // TODO body is null if not sent through html form
+			if(FILE == null) {
+				System.err.println("NO FILE"); //TODO debug print 
+				return;
+			}
 			insertIntoBody("</form>", "<br><span style='color:#080; font-weight:bold'>" + UPLOADED_FILE.getName() + " uploaded successfully</span>");
 		}
-		// write html body if it's not a redirect code (3xx)
-		if(!("" + CODE).startsWith("3")) {
+		// write html body if it's not a redirect or continue code (3xx or 1xx)
+		if(!("" + CODE).startsWith("3") && !("" + CODE).startsWith("1")) {
 			out.write(body.getBytes());
 		}
 	}
@@ -154,10 +161,10 @@ public class HTTPResponse {
 	 */
 	private void insertIntoBody(String afterTag, String insertString) throws IOException {
 		// read file to String
-		byte[] buf = new byte[1024];
+		byte[] buf = new byte[WebServer.FILE_BUFFER_SIZE];
 		StringBuilder builder = new StringBuilder();
 
-		FileInputStream fileIn = new FileInputStream(file);
+		FileInputStream fileIn = new FileInputStream(FILE);
 		int bytesRead;
 		while((bytesRead = fileIn.read(buf)) > 0) {
 			builder.append(new String(buf, 0, bytesRead));

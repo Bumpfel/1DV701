@@ -6,7 +6,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import assignment2.HTTPRequest.RequestMethod;
-import assignment2.responses.*;
 
 public class ResponseHandler {
 
@@ -23,17 +22,17 @@ public class ResponseHandler {
 				file = new File(WebServer.CONTENT_PATH + URI.substring(0, URI.length() - 1));
 			// 302 found (redirect)
 			if(request.URI.equals("/home/"))
-				return new Response302("/");
+				return new HTTPResponse(302, null, "/", null);
 				// return new HTTPResponse(302, null, "/", null);
 			// 403 forbidden
 			else if(request.URI.startsWith("/forbidden/"))
-				return new Response403();
+				return new HTTPResponse(403, null, null, null);
 			// 404 file not found
 			if(!file.isFile())
-				return new Response404();
+				return new HTTPResponse(404, null, null, null);
 			// 200 ok
 			else
-				return new Response200(file);
+				return new HTTPResponse(200, file, null, null);
 		}
 		// POST Request
 		else if(request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT) {
@@ -43,41 +42,37 @@ public class ResponseHandler {
 				// get unique name if it's a POST request; use original name otherwise (if PUT)
 				if(request.METHOD == RequestMethod.POST)
 					uploadFile = new File(WebServer.UPLOAD_PATH + findUniqueUploadFileName(request));
-				else
+				else {
 					uploadFile = new File(WebServer.UPLOAD_PATH + getUploadFileName(request));
-				
-				System.out.println(request.HEADERS.toString()); //TODO debug print
-				
-				//TODO if not submitted from form. parse that info so I don't have to check over n over
-
-				if(request.extractValue("Expect:").equals("100-continue")) {
-					String len = request.extractValue("Content-Length:");
-					String type = request.extractValue("Content-Type:");
-					System.out.println(type);
-					return new Response100(uploadFile, len, type);
 				}
-
-				//TODO debug printing
-				System.out.println(request.HEADERS.toString());
+				
+				//if not uploaded from html form //TODO reorganize
+				String expect = request.extractValue("Expect:");
+				if(expect != null && expect.trim().equals("100-continue")) {
+					return new HTTPResponse(100, null, null, uploadFile);
+				}
 
 				// Write file
 				FileOutputStream fos = new FileOutputStream(uploadFile); //TODO could maybe do this in HTTPResponse.writeResponse? pass uploadFile in file argument instead and skip the uploadFile parameter
 				fos.write(request.DATA);
 				fos.close();
 
+				File file = null;
+				if(request.URI != null)
+					file = new File(WebServer.CONTENT_PATH + request.URI);
 				// return new HTTPResponse(201, new File(WebServer.CONTENT_PATH + request.URI), null, uploadFile);
-				return new Response201(uploadFile);
+				return new HTTPResponse(201, file, null, uploadFile);
 			}
 			catch(FileNotFoundException e) {
 				System.out.println(e.getMessage());
 				// throw new RequestException("400: Bad Request");//TODO correct?
-				return new Response500(); // might also be a client error
+				return new HTTPResponse(500, null, null, null); // might also be a client error
 			}
 			catch(IOException e) { //TODO not sure this is the correct response
-				return new Response302("/upload.html"); // can happen if client clicks upload with empty file and expects a response
+				return new HTTPResponse(302, null, "/upload.html", null); // can happen if client clicks upload with empty file and expects a response
 			}
-			catch(NullPointerException e) {
-				return new Response500(); // will only happen if file string is null
+			catch(NullPointerException | ArrayIndexOutOfBoundsException e) {
+				return new HTTPResponse(500, null, null, null);
 			}
 		}
 		else
@@ -87,7 +82,7 @@ public class ResponseHandler {
 	private String findUniqueUploadFileName(HTTPRequest request) throws NullPointerException, SecurityException {
 		String fileName = getUploadFileName(request);
 		
-		// ensure file name is unique by renaming file to "fileName (n).end"
+		// ensure file name is unique
 		File file =  new File(WebServer.UPLOAD_PATH + fileName);
 		int n = 1;
 		while(file.isFile()) {
@@ -112,7 +107,7 @@ public class ResponseHandler {
 				break;
 			}
 		}
-		// elsewhere
+		//  get name from URI if not sent from html form
 		if(fileName.isEmpty()) {
 			String[] tmp = request.URI.split("/");
 			fileName = tmp[tmp.length - 1];
