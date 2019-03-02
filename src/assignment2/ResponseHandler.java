@@ -57,14 +57,16 @@ public class ResponseHandler {
 				fos.write(request.DATA);
 				fos.close();
 
+				//TODO file not right. must find a way to separate html form post and other
 				File file = null;
-				if(request.URI != null)
+				if(request.extractHeader("Content-Type: multipart/form-data") != null)
 					file = new File(WebServer.CONTENT_PATH + request.URI);
+
 				// return new HTTPResponse(201, new File(WebServer.CONTENT_PATH + request.URI), null, uploadFile);
 				return new HTTPResponse(201, file, null, uploadFile);
 			}
 			catch(FileNotFoundException e) {
-				System.out.println(e.getMessage());
+				e.printStackTrace(); // TODO temp printstacktrace
 				// throw new RequestException("400: Bad Request");//TODO correct?
 				return new HTTPResponse(500, null, null, null); // might also be a client error
 			}
@@ -72,6 +74,7 @@ public class ResponseHandler {
 				return new HTTPResponse(302, null, "/upload.html", null); // can happen if client clicks upload with empty file and expects a response
 			}
 			catch(NullPointerException | ArrayIndexOutOfBoundsException e) {
+				e.printStackTrace(); // TODO temp printstacktrace
 				return new HTTPResponse(500, null, null, null);
 			}
 		}

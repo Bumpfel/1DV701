@@ -30,7 +30,7 @@ public class ServerThread extends Thread {
 			boolean containsExpectHeader = false;
 			ArrayList<String> newHeaders = new ArrayList<>();
 			//Make a new request, removing the expect header
-			//TODO maybe have a separate method for this
+			//TODO maybe have a separate method for this. could use extractHeader?
 			for(String header : request.HEADERS) {
 				if(header.startsWith("Expect")) {
 					containsExpectHeader = true;
@@ -42,7 +42,7 @@ public class ServerThread extends Thread {
 			if(containsExpectHeader) {
 				byte[] data = reqHandler.readData();
 
-				request = new HTTPRequest(newHeaders, null, request.METHOD, data);
+				request = new HTTPRequest(newHeaders, request.URI, request.METHOD, data);
 
 				response = respHandler.createResponse(request);
 				response.sendResponse(socket.getOutputStream());
@@ -53,7 +53,7 @@ public class ServerThread extends Thread {
 				response.printPostPutStatus();
 
 			// print response status if a file was sent to client
-			if(response.FILE != null)
+			if(response.REQUEST_FILE != null)
 				response.printStatus(socket);
 			
 			socket.close();
@@ -62,6 +62,7 @@ public class ServerThread extends Thread {
 			System.err.println("408: Request timed out");
 		}
 		catch(Exception e) {
+			System.err.println("Thread caught general exception " + e.getClass().toString().split("\\.")[e.getClass().toString().split("\\.").length - 1]); //TODO debug print
             System.err.println(e.getMessage());
 			try {
 				socket.close();

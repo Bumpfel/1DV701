@@ -18,7 +18,7 @@ public class HTTPResponse {
 	private String responseHeader;
 	private String body;
 	private ArrayList<String> headers = new ArrayList<>();
-	final File FILE;
+	final File REQUEST_FILE;
 	final File UPLOADED_FILE;
 	final int CODE;
 	
@@ -62,7 +62,7 @@ public class HTTPResponse {
 			if(CONTENT_TYPES.get(fileEnding) == null)
 				throw new RequestException("415: Unsupported Media Type");
 		}
-		FILE = newFile;
+		REQUEST_FILE = newFile;
 		CODE = rCode;
 
 		String title = RESPONSE_TITLES.get(CODE);
@@ -100,7 +100,7 @@ public class HTTPResponse {
 	}
 
 	public void printStatus(Socket socket) {
-		System.out.println("RESPONSE " + CODE + " " + RESPONSE_TITLES.get(CODE) + " " + FILE.getName() + " (" +  FILE.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
+		System.out.println("RESPONSE " + CODE + " " + RESPONSE_TITLES.get(CODE) + " " + REQUEST_FILE.getName() + " (" +  REQUEST_FILE.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
 	}
 
 	public void printPostPutStatus() {
@@ -129,14 +129,12 @@ public class HTTPResponse {
 	public void sendResponse(OutputStream out) throws IOException {
 		out.write(getHeaders().getBytes());
 		if(CODE == 200) {
-			writeFile(FILE, out);
+			writeFile(REQUEST_FILE, out);
 			return;
 		}
 		if(CODE == 201) { // TODO body is null if not sent through html form
-			if(FILE == null) {
-				System.err.println("NO FILE"); //TODO debug print 
+			if(REQUEST_FILE == null)
 				return;
-			}
 			insertIntoBody("</form>", "<br><span style='color:#080; font-weight:bold'>" + UPLOADED_FILE.getName() + " uploaded successfully</span>");
 		}
 		// write html body if it's not a redirect or continue code (3xx or 1xx)
@@ -164,7 +162,7 @@ public class HTTPResponse {
 		byte[] buf = new byte[WebServer.FILE_BUFFER_SIZE];
 		StringBuilder builder = new StringBuilder();
 
-		FileInputStream fileIn = new FileInputStream(FILE);
+		FileInputStream fileIn = new FileInputStream(REQUEST_FILE);
 		int bytesRead;
 		while((bytesRead = fileIn.read(buf)) > 0) {
 			builder.append(new String(buf, 0, bytesRead));
