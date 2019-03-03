@@ -23,7 +23,6 @@ public class ResponseHandler {
 			// 302 found (redirect)
 			if(request.URI.equals("/home/"))
 				return new HTTPResponse(302, null, "/", null);
-				// return new HTTPResponse(302, null, "/", null);
 			// 403 forbidden
 			else if(request.URI.startsWith("/forbidden/"))
 				return new HTTPResponse(403, null, null, null);
@@ -42,9 +41,8 @@ public class ResponseHandler {
 				// get unique name if it's a POST request; use original name otherwise (if PUT)
 				if(request.METHOD == RequestMethod.POST)
 					uploadFile = new File(WebServer.UPLOAD_PATH + findUniqueUploadFileName(request));
-				else {
+				else
 					uploadFile = new File(WebServer.UPLOAD_PATH + getUploadFileName(request));
-				}
 				
 				//if not uploaded from html form //TODO reorganize
 				String expect = request.extractValue("Expect:");
@@ -53,11 +51,15 @@ public class ResponseHandler {
 				}
 
 				// Write file
-				FileOutputStream fos = new FileOutputStream(uploadFile); //TODO could maybe do this in HTTPResponse.writeResponse? pass uploadFile in file argument instead and skip the uploadFile parameter
-				fos.write(request.DATA);
-				fos.close();
+				if(request.DATA.length > 0) {
+					FileOutputStream fos = new FileOutputStream(uploadFile); //TODO could maybe do this in HTTPResponse.writeResponse? pass uploadFile in file argument instead and skip the uploadFile parameter
+					fos.write(request.DATA);
+					fos.close();
+				}
+				else {
+					return new HTTPResponse(204, null, null, null); // can happen if client clicks upload with empty file and expects a response
+				}
 
-				//TODO file not right. must find a way to separate html form post and other
 				File file = null;
 				if(request.extractHeader("Content-Type: multipart/form-data") != null)
 					file = new File(WebServer.CONTENT_PATH + request.URI);
@@ -65,13 +67,10 @@ public class ResponseHandler {
 				// return new HTTPResponse(201, new File(WebServer.CONTENT_PATH + request.URI), null, uploadFile);
 				return new HTTPResponse(201, file, null, uploadFile);
 			}
-			catch(FileNotFoundException e) {
+			catch(IOException e) { //FileNotFoundException e) { //TODO remove extra
 				e.printStackTrace(); // TODO temp printstacktrace
 				// throw new RequestException("400: Bad Request");//TODO correct?
 				return new HTTPResponse(500, null, null, null); // might also be a client error
-			}
-			catch(IOException e) { //TODO not sure this is the correct response
-				return new HTTPResponse(302, null, "/upload.html", null); // can happen if client clicks upload with empty file and expects a response
 			}
 			catch(NullPointerException | ArrayIndexOutOfBoundsException e) {
 				e.printStackTrace(); // TODO temp printstacktrace
@@ -107,14 +106,14 @@ public class ResponseHandler {
 			if(header.startsWith("Content-Disposition")) {
 				String[] tmp = header.split("filename=");
 				fileName = tmp[1].replaceAll("\"", "").trim();
-				break;
+				return fileName;
 			}
 		}
 		//  get name from URI if not sent from html form
-		if(fileName.isEmpty()) {
+		// if(fileName.isEmpty()) {
 			String[] tmp = request.URI.split("/");
 			fileName = tmp[tmp.length - 1];
-		}
+		// }
 		return fileName;
 
 	}

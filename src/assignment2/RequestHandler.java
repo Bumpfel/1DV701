@@ -17,8 +17,9 @@ public class RequestHandler {
     public HTTPRequest readRequest() throws IOException, ServerException, RequestException {
         ArrayList<String> headers = readHeaders();
         byte[] data = null;
-        if(inputStream.available() > 0)
+        if(inputStream.available() > 0){
             data = readData();
+        }
         return parseRequest(headers, data);
     }
     
@@ -30,7 +31,7 @@ public class RequestHandler {
         boolean emptyLineFound = false;
         StringBuilder line = new StringBuilder();
         do {
-            int read = inputStream.read();
+            int read = inputStream.read(); //TODO can get stuck here
             // checks for end of line 
             if((char) read != '\n')
                 line.append((char) read);
@@ -66,22 +67,22 @@ public class RequestHandler {
             int i = inputStream.read();
             tmpBytes.add((byte) i);
             
-            //TODO fullösning
             //searches for the 4 end of file bytes
             if(i == eof[foundEOFBytes])
-            foundEOFBytes ++;
+                foundEOFBytes ++;
             else
-            foundEOFBytes = 0;
+                foundEOFBytes = 0;
             // breaks read if eof is found
             if(foundEOFBytes == 4)
-            break;
+                break;
         }
         while(inputStream.available() > 0);
+
         //... and removes them
         int n = tmpBytes.size();
         for(int i = 0; i < foundEOFBytes; i ++) //TODO (small) logic could be improved 
             tmpBytes.remove(-- n);
-
+           
         // convert to primitive type array since that is what the fileoutputstream will want
         byte[] bytes = new byte[tmpBytes.size()];
         for(int i = 0; i < tmpBytes.size(); i ++) {

@@ -132,6 +132,8 @@ public class HTTPResponse {
 			writeFile(REQUEST_FILE, out);
 			return;
 		}
+		if(CODE == 204)
+			return;
 		if(CODE == 201) { // TODO body is null if not sent through html form
 			if(REQUEST_FILE == null)
 				return;

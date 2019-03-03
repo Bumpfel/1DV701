@@ -10,18 +10,20 @@ import assignment2.HTTPRequest.RequestMethod;
 public class ServerThread extends Thread {
 
 	private Socket socket;
-	
+
 	public ServerThread(Socket socket) {
 		this.socket = socket;
 	}
-
+	
 	public void run() {
-        try {
+		try {
+			socket.setSoTimeout(5000); // TODO test
+
 			// Receive request and print request status on the server
 			RequestHandler reqHandler = new RequestHandler(socket.getInputStream());
 			HTTPRequest request = reqHandler.readRequest();
 			request.printStatus(socket);
-
+			
 			// Create appropriate response and send it to client
 			ResponseHandler respHandler = new ResponseHandler();
 			HTTPResponse response = respHandler.createResponse(request);
@@ -38,6 +40,7 @@ public class ServerThread extends Thread {
 				}
 				newHeaders.add(header);
 			}
+
 			// Read data following an Expect: 100 Continue request header
 			if(containsExpectHeader) {
 				byte[] data = reqHandler.readData();
@@ -55,15 +58,17 @@ public class ServerThread extends Thread {
 			// print response status if a file was sent to client
 			if(response.REQUEST_FILE != null)
 				response.printStatus(socket);
-			
+							
 			socket.close();
 		}
         catch(SocketTimeoutException e) {
 			System.err.println("408: Request timed out");
+			e.printStackTrace(); // TODO debug prinstacktrace
 		}
 		catch(Exception e) {
 			System.err.println("Thread caught general exception " + e.getClass().toString().split("\\.")[e.getClass().toString().split("\\.").length - 1]); //TODO debug print
-            System.err.println(e.getMessage());
+			e.printStackTrace();
+			// System.err.println(e.getMessage());
 			try {
 				socket.close();
 			}
