@@ -1,90 +1,103 @@
 package assignment2;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.Socket;
 
 import assignment2.HTTPRequest.RequestMethod;
 
 public class ResponseHandler {
 
-	public HTTPResponse createResponse(HTTPRequest request) throws RequestException, ServerException {
-		// GET Request
-		if(request.METHOD == RequestMethod.GET) {
-			String URI = request.URI;
-			if(URI.endsWith("/")) // set default file if path ends with a slash
-				URI += "index.html";
-			File file = new File(WebServer.CONTENT_PATH + URI);
-
-			// change to index.htm if no index.html is found
-			if(!file.isFile() && file.getName().equals("index.html"))
-				file = new File(WebServer.CONTENT_PATH + URI.substring(0, URI.length() - 1));
-			// 302 found (redirect)
-			if(request.URI.equals("/home/"))
-				return new HTTPResponse(302, null, "/", null);
-			// 403 forbidden
-			else if(request.URI.startsWith("/forbidden/"))
-				return new HTTPResponse(403, null, null, null);
-			// 404 file not found
-			if(!file.isFile())
-				return new HTTPResponse(404, null, null, null);
-			// 200 ok
+	public HTTPResponse getResponse(HTTPRequest request, Socket socket) throws RequestException, ServerException {
+		try {
+			// GET Request
+			if(request.METHOD == RequestMethod.GET)
+				return createGetResponse(request);
+			// POST/PUT Request
+			else if(request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT)
+				return createPostPutResponse(request, socket);
+			// Method not allowed
 			else
-				return new HTTPResponse(200, file, null, null);
+				return new HTTPResponse(405, null, null, null);
 		}
-		// POST Request
-		else if(request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT) {
-			try {
-				File uploadFile;
+		catch(RequestException e) {
+			// extract response code from exception msg
+			String[] requestCode = e.getMessage().split(":");
+			int code = Integer.valueOf(requestCode[0]);
 
-				// get unique name if it's a POST request; use original name otherwise (if PUT)
-				if(request.METHOD == RequestMethod.POST)
-					uploadFile = new File(WebServer.UPLOAD_PATH + findUniqueUploadFileName(request));
-				else
-					uploadFile = new File(WebServer.UPLOAD_PATH + getUploadFileName(request));
-				
-				//if not uploaded from html form //TODO reorganize
-				String expect = request.extractValue("Expect:");
-				if(expect != null && expect.trim().equals("100-continue")) {
-					return new HTTPResponse(100, null, null, uploadFile);
-				}
-
-				// Write file
-				if(request.DATA.length > 0) {
-					FileOutputStream fos = new FileOutputStream(uploadFile); //TODO could maybe do this in HTTPResponse.writeResponse? pass uploadFile in file argument instead and skip the uploadFile parameter
-					fos.write(request.DATA);
-					fos.close();
-				}
-				else {
-					return new HTTPResponse(204, null, null, null); // can happen if client clicks upload with empty file and expects a response
-				}
-
-				File file = null;
-				if(request.extractHeader("Content-Type: multipart/form-data") != null)
-					file = new File(WebServer.CONTENT_PATH + request.URI);
-
-				// return new HTTPResponse(201, new File(WebServer.CONTENT_PATH + request.URI), null, uploadFile);
-				return new HTTPResponse(201, file, null, uploadFile);
-			}
-			catch(IOException e) { //FileNotFoundException e) { //TODO remove extra
-				e.printStackTrace(); // TODO temp printstacktrace
-				// throw new RequestException("400: Bad Request");//TODO correct?
-				return new HTTPResponse(500, null, null, null); // might also be a client error
-			}
-			catch(NullPointerException | ArrayIndexOutOfBoundsException e) {
-				e.printStackTrace(); // TODO temp printstacktrace
-				return new HTTPResponse(500, null, null, null);
-			}
+			return new HTTPResponse(code, null, null, null);
 		}
-		else
-			throw new RequestException("405: Method Not Allowed");
+		catch(IOException | NullPointerException | NumberFormatException | ArrayIndexOutOfBoundsException e) {
+			return new HTTPResponse(500, null, null, null);
+		}
 	}
-	
+
+	private HTTPResponse createGetResponse(HTTPRequest request) throws RequestException {
+		String URI = request.URI;
+		if(URI.endsWith("/")) // set default file if path ends with a slash
+			URI += "index.html";
+		File requestedFile = new File(WebServer.CONTENT_PATH + URI);
+
+		// change to index.htm if no index.html is found
+		if(!requestedFile.isFile() && requestedFile.getName().equals("index.html"))
+			requestedFile = new File(WebServer.CONTENT_PATH + URI.substring(0, URI.length() - 1));
+		// 302 found (redirect)
+		if(request.URI.equals("/home/"))
+			return new HTTPResponse(302, null, "/", null);
+		// 403 forbidden
+		else if(request.URI.startsWith("/forbidden/"))
+			return new HTTPResponse(403, null, null, null);
+		// 404 file not found
+		if(!requestedFile.isFile())
+			return new HTTPResponse(404, null, null, null);
+		// 200 ok
+		else
+			return new HTTPResponse(200, requestedFile, null, null);
+	}
+
+	private HTTPResponse createPostPutResponse(HTTPRequest request, Socket socket) throws IOException, NullPointerException, RequestException {
+		File uploadFile;
+		byte [] data = request.DATA;
+
+		// get unique name if it's a POST request; use original name otherwise (if PUT)
+		if(request.METHOD == RequestMethod.POST)
+			uploadFile = new File(WebServer.UPLOAD_PATH + findUniqueUploadFileName(request));
+		else
+			uploadFile = new File(WebServer.UPLOAD_PATH + getUploadFileName(request));
+		
+		// checks if the request expects a HTTP 100 response before sending the data
+		if(request.getHeader("Expect: 100-continue") != null) {
+			//... sends one if that is the case
+			new HTTPResponse(100, null, null, null).sendResponse(socket.getOutputStream());
+			//... and receives the data
+			data = new RequestHandler(socket.getInputStream()).readData();
+		}
+		
+		// sets requested file if file was sent via html form
+		File requestedFile = null;
+		if(request.getHeader("Content-Type: multipart/form-data") != null)
+			requestedFile = new File(WebServer.CONTENT_PATH + request.URI);
+		
+		// Write data to file on server
+		if(data.length > 0) {
+			FileOutputStream fos = new FileOutputStream(uploadFile);
+			fos.write(data);
+			fos.close();
+		}
+		else {
+			return new HTTPResponse(204, null, null, null); // happens if client submits the html form with no file selected
+		}
+		return new HTTPResponse(201, requestedFile, null, uploadFile);
+	}
+
+	/**
+	 * For POST requests
+	 */
 	private String findUniqueUploadFileName(HTTPRequest request) throws NullPointerException, SecurityException {
 		String fileName = getUploadFileName(request);
 		
-		// ensure file name is unique
+		// ensures file name is unique
 		File file =  new File(WebServer.UPLOAD_PATH + fileName);
 		int n = 1;
 		while(file.isFile()) {
@@ -99,6 +112,9 @@ public class ResponseHandler {
 		return file.getName();
 	}
 
+	/**
+	 * For PUT requests
+	 */
 	private String getUploadFileName(HTTPRequest request) {
 		String fileName = new String();
 		// get name from html form
@@ -110,12 +126,9 @@ public class ResponseHandler {
 			}
 		}
 		//  get name from URI if not sent from html form
-		// if(fileName.isEmpty()) {
-			String[] tmp = request.URI.split("/");
-			fileName = tmp[tmp.length - 1];
-		// }
+		String[] tmp = request.URI.split("/");
+		fileName = tmp[tmp.length - 1];
 		return fileName;
-
 	}
 
 }

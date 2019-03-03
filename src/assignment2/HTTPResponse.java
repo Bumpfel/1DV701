@@ -18,7 +18,7 @@ public class HTTPResponse {
 	private String responseHeader;
 	private String body;
 	private ArrayList<String> headers = new ArrayList<>();
-	final File REQUEST_FILE;
+	final File REQUESTED_FILE;
 	final File UPLOADED_FILE;
 	final int CODE;
 	
@@ -37,53 +37,55 @@ public class HTTPResponse {
 		put(100, "Continue");
 		put(200, "OK");
 		put(201, "Created");
+		put(204, "No Content");
 		put(302, "Found");
 		put(403, "Forbidden");
 		put(404, "File Not Found");
+		put(405, "Method Not Allowed");
+		put(415, "Unsupported Media Type");
 		put(500, "Internal Server Error");
 	}};
 	
 	private final Map<Integer, String> RESPONSE_INFO = new HashMap<>() {{
 		put(403, "Access to this resource is forbidden");
 		put(404, "The page you're looking for does not exist");
+		put(405, "");
+		put(415, "");
 		put(500, "The server encountered an internal error");
 	}};
 
 	public HTTPResponse(int rCode, File newFile, String redirectLocation, File uploadFile) throws RequestException {
 		UPLOADED_FILE = uploadFile;
 		
-		//TODO generally messy
-		String fileEnding = new String(); // TODO don't do this here. do it in responsehandler. do need fileending here tho 
+		String fileEnding = new String();
 		// check file format
 		if(newFile != null) {
 			int dotPos = newFile.getName().lastIndexOf(".");
 			fileEnding = newFile.getName().substring(dotPos + 1);
-			// file format not suported
+			// file format not supported
 			if(CONTENT_TYPES.get(fileEnding) == null)
 				throw new RequestException("415: Unsupported Media Type");
 		}
-		REQUEST_FILE = newFile;
+		REQUESTED_FILE = newFile;
 		CODE = rCode;
 
 		String title = RESPONSE_TITLES.get(CODE);
 		responseHeader = "HTTP/1.1 " + CODE + " " + title + "\r\n";
 		
 		// decide headers
-		if(CODE == 302)
+		if(CODE == 100)
+			return;
+		else if(CODE == 302)
 			headers.add("Location: " + redirectLocation);
-		else if(CODE != 200 && CODE != 201) {
+		else if(REQUESTED_FILE == null) {
 			headers.add("Content-Type: text/html");
-		}
-		else if(CODE != 100) {
-			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
-			// if(file != null)
-			// 	headers.add("Content-Length: " + file.length());
 			headers.add("Connection: close");
-		}
-
-		// create an html body instead of reading from a file if its an error response
-		if(CODE == 403 || CODE == 404 || CODE == 500) {
 			createBody(rCode);
+		}
+		else {
+			headers.add("Content-Type: " + CONTENT_TYPES.get(fileEnding));
+			headers.add("Content-Length: " + REQUESTED_FILE.length());
+			headers.add("Connection: close");
 		}
 	}
 
@@ -99,11 +101,14 @@ public class HTTPResponse {
 		return new String(strB);
 	}
 
-	public void printStatus(Socket socket) {
-		System.out.println("RESPONSE " + CODE + " " + RESPONSE_TITLES.get(CODE) + " " + REQUEST_FILE.getName() + " (" +  REQUEST_FILE.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());	
+	public void printStatus() {
+		System.out.print("RESPONSE " + CODE + " " + RESPONSE_TITLES.get(CODE));
 	}
-
-	public void printPostPutStatus() {
+	public void printRequestFileStatus(Socket socket) {
+		System.out.println(" " + REQUESTED_FILE.getName() + " (" +  REQUESTED_FILE.length() + " B) to " + socket.getInetAddress().toString().substring(1) + " using port " + socket.getPort());
+	}
+	
+	public void printReceiveFileStatus() {
 		System.out.println("-Received " + UPLOADED_FILE.getName() + " (" + UPLOADED_FILE.length() + " B)");
 	}
 
@@ -123,26 +128,18 @@ public class HTTPResponse {
 	}
 
 	/**
-	 * Writes header, and then either file requested in case of a 200 response, or a defined html body unless it's a redirect response (3xx)
+	 * Writes header and content
 	 * @param out 
 	 */
 	public void sendResponse(OutputStream out) throws IOException {
+		//write headers
 		out.write(getHeaders().getBytes());
-		if(CODE == 200) {
-			writeFile(REQUEST_FILE, out);
-			return;
-		}
-		if(CODE == 204)
-			return;
-		if(CODE == 201) { // TODO body is null if not sent through html form
-			if(REQUEST_FILE == null)
-				return;
-			insertIntoBody("</form>", "<br><span style='color:#080; font-weight:bold'>" + UPLOADED_FILE.getName() + " uploaded successfully</span>");
-		}
-		// write html body if it's not a redirect or continue code (3xx or 1xx)
-		if(!("" + CODE).startsWith("3") && !("" + CODE).startsWith("1")) {
+
+		// write content
+		if(CODE == 200 || CODE == 201)
+			writeFile(REQUESTED_FILE, out);
+		else if(body != null)
 			out.write(body.getBytes());
-		}
 	}
 
 	private void writeFile(File file, OutputStream out) throws IOException {
@@ -154,33 +151,6 @@ public class HTTPResponse {
 			out.write(buf, 0, bytesRead);
 		}
 		fileIn.close();
-	}
-	
-	/**
-	 * reads an html (text) file to string in order to alter the content. used to print successful upload message
-	 */
-	private void insertIntoBody(String afterTag, String insertString) throws IOException {
-		// read file to String
-		byte[] buf = new byte[WebServer.FILE_BUFFER_SIZE];
-		StringBuilder builder = new StringBuilder();
-
-		FileInputStream fileIn = new FileInputStream(REQUEST_FILE);
-		int bytesRead;
-		while((bytesRead = fileIn.read(buf)) > 0) {
-			builder.append(new String(buf, 0, bytesRead));
-		}
-		body = builder.toString();
-		fileIn.close();
-
-		// insert string
-		String[] rows = body.split(afterTag);
-		rows[0] += insertString;
-
-		// piece together body again
-		body = "";
-		for(String row : rows) {
-			body += row;
-		}
 	}
 
 }

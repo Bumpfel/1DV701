@@ -3,7 +3,6 @@ package assignment2;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.util.ArrayList;
 
 import assignment2.HTTPRequest.RequestMethod;
 
@@ -17,63 +16,39 @@ public class ServerThread extends Thread {
 	
 	public void run() {
 		try {
-			socket.setSoTimeout(5000); // TODO test
-
 			// Receive request and print request status on the server
 			RequestHandler reqHandler = new RequestHandler(socket.getInputStream());
 			HTTPRequest request = reqHandler.readRequest();
 			request.printStatus(socket);
 			
-			// Create appropriate response and send it to client
+			// Get response from handler and send it to client
 			ResponseHandler respHandler = new ResponseHandler();
-			HTTPResponse response = respHandler.createResponse(request);
+			HTTPResponse response = respHandler.getResponse(request, socket);
 			response.sendResponse(socket.getOutputStream());
-			
-			boolean containsExpectHeader = false;
-			ArrayList<String> newHeaders = new ArrayList<>();
-			//Make a new request, removing the expect header
-			//TODO maybe have a separate method for this. could use extractHeader?
-			for(String header : request.HEADERS) {
-				if(header.startsWith("Expect")) {
-					containsExpectHeader = true;
-					break;
-				}
-				newHeaders.add(header);
-			}
 
-			// Read data following an Expect: 100 Continue request header
-			if(containsExpectHeader) {
-				byte[] data = reqHandler.readData();
-
-				request = new HTTPRequest(newHeaders, request.URI, request.METHOD, data);
-
-				response = respHandler.createResponse(request);
-				response.sendResponse(socket.getOutputStream());
-			}
-
-			// print info about received file if it was a post or put request
+			// print info about received file if available
 			if((request.METHOD == RequestMethod.POST || request.METHOD == RequestMethod.PUT) && response.UPLOADED_FILE != null)
-				response.printPostPutStatus();
+				response.printReceiveFileStatus();
 
-			// print response status if a file was sent to client
-			if(response.REQUEST_FILE != null)
-				response.printStatus(socket);
-							
+			// print response status if requested file was sent to client
+			response.printStatus();
+			if(response.REQUESTED_FILE != null)
+				response.printRequestFileStatus(socket);
+			else
+				System.out.println();
+			
 			socket.close();
 		}
-        catch(SocketTimeoutException e) {
-			System.err.println("408: Request timed out");
-			e.printStackTrace(); // TODO debug prinstacktrace
+        catch(SocketTimeoutException e) { // happens if client attempts to submit the html form with no selected file
 		}
 		catch(Exception e) {
-			System.err.println("Thread caught general exception " + e.getClass().toString().split("\\.")[e.getClass().toString().split("\\.").length - 1]); //TODO debug print
-			e.printStackTrace();
-			// System.err.println(e.getMessage());
+			System.err.println(e.getMessage());
 			try {
 				socket.close();
 			}
 			catch(IOException e2) {
 			}
 		}
-	}	
+	}
+	
 }

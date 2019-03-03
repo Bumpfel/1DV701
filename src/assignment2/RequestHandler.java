@@ -16,31 +16,32 @@ public class RequestHandler {
 
     public HTTPRequest readRequest() throws IOException, ServerException, RequestException {
         ArrayList<String> headers = readHeaders();
+
+        // read data if input stream still contains data (in case of an html post)
         byte[] data = null;
-        if(inputStream.available() > 0){
+        if(inputStream.available() > 0)
             data = readData();
-        }
+
         return parseRequest(headers, data);
     }
     
-    /**
-     * Reads the headers of the request
-     */
     private ArrayList<String> readHeaders() throws IOException {
         ArrayList<String> headers = new ArrayList<>();
         boolean emptyLineFound = false;
         StringBuilder line = new StringBuilder();
-        do {
-            int read = inputStream.read(); //TODO can get stuck here
+
+        do { // blocks until input stream contains data
+            char readChar = (char) inputStream.read();
             // checks for end of line 
-            if((char) read != '\n')
-                line.append((char) read);
+            if(readChar != '\n')
+                line.append(readChar);
             else {
                 headers.add(line.toString()); // add line to headers
 
                 if(line.toString().startsWith("Content-Type: multipart/form-data"))
                     containsMultiPartData = true;
-                // looks for the second empty line if inputstream contains multipart/form-data (both headers and binary data)
+                
+                // looks for the second empty line if input stream contains multipart/form-data (both headers and binary data)
                 // if not, looks for first empty line
                 if(line.toString().trim().isEmpty()) {
                     if(emptyLineFound || !containsMultiPartData)
@@ -60,40 +61,42 @@ public class RequestHandler {
      */
     public byte[] readData() throws IOException {
         // reading to array list to avoid manual re-size
-        ArrayList<Byte> tmpBytes = new ArrayList<>();
+        ArrayList<Byte> tempBytes = new ArrayList<>();
         int foundEOFBytes = 0;
-        int[] eof = { 13, 10, 45, 45 };
-        do {
+        int[] eof = { 13, 10, 45, 45 }; // \n--
+        
+        do { // blocks until input stream contains data
             int i = inputStream.read();
-            tmpBytes.add((byte) i);
+            tempBytes.add((byte) i);
             
             //searches for the 4 end of file bytes
             if(i == eof[foundEOFBytes])
                 foundEOFBytes ++;
             else
                 foundEOFBytes = 0;
+            
             // breaks read if eof is found
             if(foundEOFBytes == 4)
                 break;
         }
-        while(inputStream.available() > 0);
+        while(inputStream.available() > 0); // still need to break if request contains an Expect: 100-Continue. Then there is no EoF
 
-        //... and removes them
-        int n = tmpBytes.size();
-        for(int i = 0; i < foundEOFBytes; i ++) //TODO (small) logic could be improved 
-            tmpBytes.remove(-- n);
-           
+        // remove potential eof bytes
+        int size = tempBytes.size();
+        for(int i = size - 1; i + foundEOFBytes >= size; i --) {
+            tempBytes.remove(i);
+        }
+
         // convert to primitive type array since that is what the fileoutputstream will want
-        byte[] bytes = new byte[tmpBytes.size()];
-        for(int i = 0; i < tmpBytes.size(); i ++) {
-            bytes[i] = tmpBytes.get(i);
+        byte[] bytes = new byte[tempBytes.size()];
+        for(int i = 0; i < tempBytes.size(); i ++) {
+            bytes[i] = tempBytes.get(i);
         }
 
         return bytes;
     }
 
 	private HTTPRequest parseRequest(ArrayList<String> headers, byte[] binaryData) throws RequestException, ServerException {
-        //TODO uploading from html form sometimes creates an empty request. thread seems to be still running when it happens
         if(headers.isEmpty())
             throw new RequestException("400: Bad Request - Request empty");
         

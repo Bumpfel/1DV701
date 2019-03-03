@@ -22,7 +22,6 @@ public class WebServer {
 
 			while (true) {
 				Socket clientSocket = serverSocket.accept();
-
 				new ServerThread(clientSocket).start();
 			}
 		}

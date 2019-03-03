@@ -4,6 +4,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 
 public class HTTPRequest {
+	// public final variables instead of getters
 	public final ArrayList<String> HEADERS;
 	public final String URI;
 	public final RequestMethod METHOD;
@@ -22,16 +23,7 @@ public class HTTPRequest {
 		System.out.println(METHOD + " REQUEST " + URI + " from " +  socket.getInetAddress().toString().substring(1));
 	}
 
-	public String extractValue(String attribute) throws ArrayIndexOutOfBoundsException {
-		for(String header : HEADERS) {
-			if(header.startsWith(attribute)) {
-				return header.split(attribute)[1].replaceAll("\"", "").trim();
-			}
-		}
-		return null;
-	}
-
-	public String extractHeader(String attribute) throws ArrayIndexOutOfBoundsException {
+	public String getHeader(String attribute) throws ArrayIndexOutOfBoundsException {
 		for(String header : HEADERS) {
 			if(header.startsWith(attribute)) {
 				return header;
