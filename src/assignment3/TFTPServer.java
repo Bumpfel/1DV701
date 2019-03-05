@@ -1,5 +1,6 @@
 package assignment3;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -11,8 +12,8 @@ public class TFTPServer
 {
 	public static final int TFTPPORT = 4970;
 	public static final int BUFSIZE = 516;
-	public static final String READDIR = "/home/username/read/"; //custom address at your PC
-	public static final String WRITEDIR = "/home/username/write/"; //custom address at your PC
+	public static final String READDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/downloaded/"; //custom address at your PC
+	public static final String WRITEDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/uploaded/"; //custom address at your PC
 	// OP codes
 	public static final int OP_RRQ = 1;
 	public static final int OP_WRQ = 2;
@@ -53,48 +54,52 @@ public class TFTPServer
 				final InetSocketAddress clientAddress = receiveFrom(socket, buf);
 				
 				// If clientAddress is null, an error occurred in receiveFrom()
-				if (clientAddress == null) 
-				continue;
+				if (clientAddress == null)
+					continue;
 
-				final StringBuffer requestedFile= new StringBuffer();
+				final StringBuffer requestedFile = new StringBuffer();
 				final int reqtype = ParseRQ(buf, requestedFile);
 
-				new Thread() 
-				{
-					public void run() 
-					{
-						try 
-						{
-							DatagramSocket sendSocket= new DatagramSocket(0);
+				//TODO maybe separate this thread into its own class?
+				new Thread() {
+					public void run() {
+						try {
+							DatagramSocket sendSocket = new DatagramSocket(0);
 
 							// Connect to client
-							sendSocket.connect(clientAddress);						
+							sendSocket.connect(clientAddress);
 							
-							System.out.printf("%s request for %s from %s using port %d\n",
-									(reqtype == OP_RRQ)?"Read":"Write",
-									clientAddress.getHostName(), clientAddress.getPort());  
-									
+							System.out.println("host: " + clientAddress.getHostName());
+
+							System.out.print((reqtype == OP_RRQ) ? "Read" : "Write");
+							System.out.println(" request for " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
+							
 							// Read request
-							if (reqtype == OP_RRQ) 
-							{      
+							if (reqtype == OP_RRQ) {
 								requestedFile.insert(0, READDIR);
 								HandleRQ(sendSocket, requestedFile.toString(), OP_RRQ);
 							}
 							// Write request
-							else 
-							{                       
+							else {
 								requestedFile.insert(0, WRITEDIR);
-								HandleRQ(sendSocket,requestedFile.toString(),OP_WRQ);  
+								HandleRQ(sendSocket,requestedFile.toString(),OP_WRQ);
 							}
 							sendSocket.close();
-						} 
-						catch (SocketException e) 
-							{e.printStackTrace();}
+						}
+						catch(SocketException e) {
+								e.printStackTrace();
+						}
+						catch(IOException e) {
+							System.err.println(e.getMessage());
+						}
 					}
 				}.start();
 			}
-			catch(IOException e){
-				System.err.println(e.getMessage()); // TODO TEMP
+			catch(IOException e) {
+				System.err.println(e.getMessage());
+			}
+			catch(ArrayIndexOutOfBoundsException e) { //TODO (small) not sure this is needed
+				System.err.println("Invalid request");
 			}
 		}
 	}
@@ -106,18 +111,10 @@ public class TFTPServer
 	 * @return socketAddress (the socket address of the client)
 	 */
 	private InetSocketAddress receiveFrom(DatagramSocket socket, byte[] buf) throws IOException {
-		// Create datagram packet
 		DatagramPacket packet = new DatagramPacket(buf, buf.length);
-		
-		// Receive packet
 		socket.receive(packet);
-		System.out.println(packet.getAddress());
 
-		
-		// Get client address and port from the packet
-		
-		return null;
-		// return socketAddress;
+		return new InetSocketAddress(packet.getAddress(), packet.getPort());
 	}
 
 	/**
@@ -127,12 +124,20 @@ public class TFTPServer
 	 * @param requestedFile (name of file to read/write)
 	 * @return opcode (request type: RRQ or WRQ)
 	 */
-	private int ParseRQ(byte[] buf, StringBuffer requestedFile) 
-	{
-		// See "TFTP Formats" in TFTP specification for the RRQ/WRQ request contents
+	private int ParseRQ(byte[] buf, StringBuffer requestedFile) throws IndexOutOfBoundsException { //TODO (small) not sure the throw is necessary
+		int opCode = buf[0] + buf[1];
 		
-		// return opcode;
-		return -1;
+		//RRQ
+		if(opCode == 1) {
+			for(int i = 2; i < buf.length; i ++) {
+				requestedFile.append((char) buf[i]);
+				// 0-byte
+				if(buf[i] == 0) {
+					break;
+				}
+			}
+		}
+		return opCode;
 	}
 
 	/**
@@ -142,19 +147,34 @@ public class TFTPServer
 	 * @param requestedFile (name of file to read/write)
 	 * @param opcode (RRQ or WRQ)
 	 */
-	private void HandleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) 
-	{	
-		if(opcode == OP_RRQ)
-		{
+	private void HandleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) throws IOException {
+		if(opcode == OP_RRQ) {
+			File file = new File(requestedFile);
+			byte[] buf = new byte[BUFSIZE];
+
+			//opCode
+			buf[0] = 0;
+			buf[1] = (byte) opcode;
+			//block #
+			buf[2] = 0;
+			buf[3] = 1;
+			//data
+			int i = 0, offset = 0;
+			while(i < requestedFile.length()) {
+				buf[i + 4] = (byte) requestedFile.charAt(i);
+				i ++;
+			}
+			System.out.println("i: " + i);
+
+			DatagramPacket packet = new DatagramPacket(buf, i + 4);
+			sendSocket.send(packet);
 			// See "TFTP Formats" in TFTP specification for the DATA and ACK packet contents
 			boolean result = send_DATA_receive_ACK();
 		}
-		else if (opcode == OP_WRQ) 
-		{
+		else if (opcode == OP_WRQ) {
 			boolean result = receive_DATA_send_ACK();
 		}
-		else 
-		{
+		else {
 			System.err.println("Invalid request. Sending an error packet.");
 			// See "TFTP Formats" in TFTP specification for the ERROR packet contents
 			send_ERR();
@@ -165,21 +185,17 @@ public class TFTPServer
 	/**
 	To be implemented
 	*/
-	private boolean send_DATA_receive_ACK()
-	{return true;}
-	
-	private boolean receive_DATA_send_ACK()
-	{return true;}
-	
-	private void send_ERR()
-	{}
-	
-
-	private void checkTimeOut() {
-		long timestamp = System.currentTimeMillis();
-		final int TIMEOUT_VALUE = 1000;
-		while(timestamp + TIMEOUT_VALUE < System.currentTimeMillis());
+	private boolean send_DATA_receive_ACK() {
+		return true;
 	}
+	
+	private boolean receive_DATA_send_ACK() {
+		return true;
+	}
+	
+	private void send_ERR()	{
+	}
+	
 }
 
 
