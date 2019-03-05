@@ -1,35 +1,39 @@
 package assignment3;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
 
 public class TFTPServer 
 {
 	public static final int TFTPPORT = 4970;
 	public static final int BUFSIZE = 516;
-	public static final String READDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/downloaded/"; //custom address at your PC
-	public static final String WRITEDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/uploaded/"; //custom address at your PC
+	public static final int BLOCK_SIZE = 512;
+
+	public static final String READDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/server-files/"; //custom address at your PC
+	public static final String WRITEDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/uploaded-files/"; //custom address at your PC
 	// OP codes
-	public static final int OP_RRQ = 1;
-	public static final int OP_WRQ = 2;
-	public static final int OP_DAT = 3;
-	public static final int OP_ACK = 4;
-	public static final int OP_ERR = 5;
+	public static final short OP_RRQ = 1;
+	public static final short OP_WRQ = 2;
+	public static final short OP_DAT = 3;
+	public static final short OP_ACK = 4;
+	public static final short OP_ERR = 5;
 
 	public static void main(String[] args) {
-		if (args.length > 0) 
-		{
+		if (args.length > 0) {
 			System.err.printf("usage: java %s\n", TFTPServer.class.getCanonicalName());
 			System.exit(1);
 		}
 
-		try 
-		{
+		try {
 			TFTPServer server = new TFTPServer();
 			server.start();
 		}
@@ -38,8 +42,7 @@ public class TFTPServer
 		}
 	}
 	
-	private void start() throws SocketException 
-	{
+	private void start() throws SocketException {
 		byte[] buf= new byte[BUFSIZE];
 		
 		DatagramSocket socket = new DatagramSocket(null);
@@ -82,15 +85,20 @@ public class TFTPServer
 							// Write request
 							else {
 								requestedFile.insert(0, WRITEDIR);
-								HandleRQ(sendSocket,requestedFile.toString(),OP_WRQ);
+								HandleRQ(sendSocket, requestedFile.toString(),OP_WRQ);
 							}
 							sendSocket.close();
 						}
 						catch(SocketException e) {
 								e.printStackTrace();
 						}
+						catch(FileNotFoundException e) {
+							// System.err.println("The requested file does not exist");
+							e.printStackTrace();
+							//TODO Send ERR
+						}
 						catch(IOException e) {
-							System.err.println(e.getMessage());
+							e.printStackTrace();
 						}
 					}
 				}.start();
@@ -126,16 +134,13 @@ public class TFTPServer
 	 */
 	private int ParseRQ(byte[] buf, StringBuffer requestedFile) throws IndexOutOfBoundsException { //TODO (small) not sure the throw is necessary
 		int opCode = buf[0] + buf[1];
-		
-		//RRQ
-		if(opCode == 1) {
-			for(int i = 2; i < buf.length; i ++) {
-				requestedFile.append((char) buf[i]);
-				// 0-byte
-				if(buf[i] == 0) {
-					break;
-				}
+	
+		for(int i = 2; i < buf.length; i ++) {
+			// 0-byte
+			if(buf[i] == 0) {
+				break;
 			}
+			requestedFile.append((char) buf[i]);
 		}
 		return opCode;
 	}
@@ -148,31 +153,91 @@ public class TFTPServer
 	 * @param opcode (RRQ or WRQ)
 	 */
 	private void HandleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) throws IOException {
+		// Read ReQuest
 		if(opcode == OP_RRQ) {
 			File file = new File(requestedFile);
 			byte[] buf = new byte[BUFSIZE];
+			
+			FileInputStream fis = new FileInputStream(file);
+			boolean packetAcknowledged = false;
+			int block = 1, offset = 4, bytesRead;
 
-			//opCode
-			buf[0] = 0;
-			buf[1] = (byte) opcode;
-			//block #
-			buf[2] = 0;
-			buf[3] = 1;
-			//data
-			int i = 0, offset = 0;
-			while(i < requestedFile.length()) {
-				buf[i + 4] = (byte) requestedFile.charAt(i);
-				i ++;
+			do {
+				//opCode DATA (3)
+				buf[0] = 0;
+				buf[1] = OP_DAT;
+				
+				// block number. int to high and low byte, filtered using logical bitwise operations and logical shifts
+				buf[2] = (byte) (block >> 8 & 0xFF);
+				buf[3] = (byte) (block & 0xFF);
+				
+				// read to buffer if stream contains data 
+				if(fis.available() > 0)
+					bytesRead = fis.read(buf, offset, buf.length - offset);
+				else
+					bytesRead = 0;
+				
+				System.out.println("block " + (buf[2] + buf[3]) + ": " + bytesRead + " B");
+
+				// send and wait for acknowledgement
+				DatagramPacket packet = new DatagramPacket(buf, 0, bytesRead + offset); // TODO testing w/o offset 0 in arg
+				packetAcknowledged = false;
+				while(!packetAcknowledged) // TODO include a maximum time
+					packetAcknowledged = send_DATA_receive_ACK(packet, sendSocket, block); // TODO should include a timeout
+				block ++;
 			}
-			System.out.println("i: " + i);
+			while(bytesRead == BLOCK_SIZE);
 
-			DatagramPacket packet = new DatagramPacket(buf, i + 4);
-			sendSocket.send(packet);
-			// See "TFTP Formats" in TFTP specification for the DATA and ACK packet contents
-			boolean result = send_DATA_receive_ACK();
+			if(fis.available() == 0)
+				System.out.println("--transfer done");
+			else if(!packetAcknowledged)
+				System.out.println("--transfer failure. block " + block + " not acknowledged");
+			else
+				System.out.println("--transfer failure");
+			fis.close();
 		}
+		// Write ReQuest
 		else if (opcode == OP_WRQ) {
-			boolean result = receive_DATA_send_ACK();
+			byte[] buf = new byte[BUFSIZE];
+
+			// ByteBuffer b = ByteBuffer.allocate(BUFSIZE);
+
+			// opCode ACK (04)
+			buf[0] = 0;
+			buf[1] = OP_ACK;
+			// b.putShort(OP_ACK);
+
+			// Block number 0
+			buf[2] = 0;
+			buf[3] = 0;
+			// b.putShort((short) 0);
+
+			DatagramPacket initialAckPacket = new DatagramPacket(buf, buf.length);
+			sendSocket.send(initialAckPacket);
+			
+			FileOutputStream fos = new FileOutputStream(requestedFile);
+			DatagramPacket receivePacket;
+			int block = 1;
+			boolean result;
+			do {
+				DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
+				buf[0] = 0;
+				buf[1] = OP_ACK;
+				
+				buf[2] = (byte) (block >> 8 & 0xFF);
+				buf[3] = (byte) (block & 0xFF);
+				
+				receivePacket = new DatagramPacket(buf, buf.length);
+				result = false;
+				while(!result)
+					result = receive_DATA_send_ACK(ackPacket, receivePacket, sendSocket, 0);
+
+				fos.write(receivePacket.getData());
+				
+				block ++;
+			}
+			while(receivePacket.getData().length == BLOCK_SIZE);
+			fos.close();
 		}
 		else {
 			System.err.println("Invalid request. Sending an error packet.");
@@ -185,12 +250,31 @@ public class TFTPServer
 	/**
 	To be implemented
 	*/
-	private boolean send_DATA_receive_ACK() {
-		return true;
+
+	private boolean send_DATA_receive_ACK(DatagramPacket packet, DatagramSocket socket, int block) throws IOException {
+		//TODO need timeout function. return false if timed out
+		socket.send(packet);
+		
+		byte[] buf = new byte[BUFSIZE];
+
+		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
+
+		System.out.println("waiting on ack");
+		socket.receive(ackPacket);
+		int ack = buf[2] + buf[3];
+		System.out.println("ack received. ACK=" + ack);
+		
+		return ack == block;
 	}
 	
-	private boolean receive_DATA_send_ACK() {
-		return true;
+	private boolean receive_DATA_send_ACK(DatagramPacket ackPacket, DatagramPacket dataPacket, DatagramSocket socket, int block) throws IOException {
+		socket.receive(dataPacket);
+
+		int receivedBlock = dataPacket.getData()[2] + dataPacket.getData()[3];
+
+		socket.send(ackPacket);
+		
+		return block == receivedBlock;
 	}
 	
 	private void send_ERR()	{
