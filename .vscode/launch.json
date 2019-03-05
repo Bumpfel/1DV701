@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "CodeLens (Launch) - WebServer",
+            "request": "launch",
+            "mainClass": "assignment2.WebServer",
+            "projectName": "1DV701"
+        },
+        {
+            "type": "java",
+            "name": "CodeLens (Launch) - TFTPServer",
+            "request": "launch",
+            "mainClass": "assignment3.TFTPServer",
+            "projectName": "1DV701"
+        }
+    ]
+}

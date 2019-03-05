@@ -1,5 +1,4 @@
 /bin/
-/.vscode/
-/src/.vscode/
+*/.vscode/
 *.class
 /src/assignment2/uploads/
