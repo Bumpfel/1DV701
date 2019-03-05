@@ -12,6 +12,7 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 
+//TODO blir inget felmeddelande om man försöker getta till en icke existerande mapp
 public class TFTPServer 
 {
 	public static final int TFTPPORT = 4970;
@@ -159,7 +160,7 @@ public class TFTPServer
 			byte[] buf = new byte[BUFSIZE];
 			
 			FileInputStream fis = new FileInputStream(file);
-			boolean packetAcknowledged = false;
+			boolean packetAcknowledged;
 			int block = 1, offset = 4, bytesRead;
 
 			do {
@@ -177,67 +178,61 @@ public class TFTPServer
 				else
 					bytesRead = 0;
 				
-				System.out.println("block " + (buf[2] + buf[3]) + ": " + bytesRead + " B");
+				System.out.println("prepared to send block " + (buf[2] + buf[3]) + ": " + bytesRead + " B");
 
 				// send and wait for acknowledgement
-				DatagramPacket packet = new DatagramPacket(buf, 0, bytesRead + offset); // TODO testing w/o offset 0 in arg
+				DatagramPacket packet = new DatagramPacket(buf, bytesRead + offset); // TODO testing w/o offset 0 in arg
 				packetAcknowledged = false;
 				while(!packetAcknowledged) // TODO include a maximum time
 					packetAcknowledged = send_DATA_receive_ACK(packet, sendSocket, block); // TODO should include a timeout
 				block ++;
 			}
 			while(bytesRead == BLOCK_SIZE);
-
+			//TODO debug prints
 			if(fis.available() == 0)
 				System.out.println("--transfer done");
-			else if(!packetAcknowledged)
-				System.out.println("--transfer failure. block " + block + " not acknowledged");
 			else
 				System.out.println("--transfer failure");
 			fis.close();
 		}
 		// Write ReQuest
-		else if (opcode == OP_WRQ) {
+		else if (opcode == OP_WRQ) { // TODO needs refactoring
 			byte[] buf = new byte[BUFSIZE];
-
-			// ByteBuffer b = ByteBuffer.allocate(BUFSIZE);
+			int block = 0;
 
 			// opCode ACK (04)
 			buf[0] = 0;
 			buf[1] = OP_ACK;
-			// b.putShort(OP_ACK);
-
+			
 			// Block number 0
 			buf[2] = 0;
-			buf[3] = 0;
-			// b.putShort((short) 0);
+			buf[3] = (byte) block;
+			
+			int OFFSET = 4;
 
 			DatagramPacket initialAckPacket = new DatagramPacket(buf, buf.length);
 			sendSocket.send(initialAckPacket);
 			
 			FileOutputStream fos = new FileOutputStream(requestedFile);
 			DatagramPacket receivePacket;
-			int block = 1;
-			boolean result;
+			block = 1;
+			boolean packetAcknowledged;
 			do {
-				DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
-				buf[0] = 0;
-				buf[1] = OP_ACK;
-				
-				buf[2] = (byte) (block >> 8 & 0xFF);
-				buf[3] = (byte) (block & 0xFF);
-				
 				receivePacket = new DatagramPacket(buf, buf.length);
-				result = false;
-				while(!result)
-					result = receive_DATA_send_ACK(ackPacket, receivePacket, sendSocket, 0);
-
-				fos.write(receivePacket.getData());
 				
+				packetAcknowledged = false;
+				while(!packetAcknowledged)
+					packetAcknowledged = receive_DATA_send_ACK(receivePacket, sendSocket, block);
 				block ++;
+
+				fos.write(receivePacket.getData(), OFFSET, receivePacket.getLength() - OFFSET);
 			}
-			while(receivePacket.getData().length == BLOCK_SIZE);
+			while(receivePacket.getLength() - OFFSET == BLOCK_SIZE);
+			
+			//TODO debug prints
+			System.out.println("--transfer done");
 			fos.close();
+
 		}
 		else {
 			System.err.println("Invalid request. Sending an error packet.");
@@ -251,7 +246,7 @@ public class TFTPServer
 	To be implemented
 	*/
 
-	private boolean send_DATA_receive_ACK(DatagramPacket packet, DatagramSocket socket, int block) throws IOException {
+	private boolean send_DATA_receive_ACK(DatagramPacket packet, DatagramSocket socket, int expectedBlock) throws IOException {
 		//TODO need timeout function. return false if timed out
 		socket.send(packet);
 		
@@ -259,22 +254,35 @@ public class TFTPServer
 
 		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
 
-		System.out.println("waiting on ack");
+		System.out.println("waiting on ack. expecting block " + expectedBlock);
 		socket.receive(ackPacket);
-		int ack = buf[2] + buf[3];
-		System.out.println("ack received. ACK=" + ack);
+		int receivedBlock = buf[2] + buf[3];
+		System.err.println("ACK RECEIVED. BLOCK=" + receivedBlock);
 		
-		return ack == block;
+		return receivedBlock == expectedBlock;
 	}
 	
-	private boolean receive_DATA_send_ACK(DatagramPacket ackPacket, DatagramPacket dataPacket, DatagramSocket socket, int block) throws IOException {
+	private boolean receive_DATA_send_ACK(DatagramPacket dataPacket, DatagramSocket socket, int expectedBlock) throws IOException {
+		System.out.println("waiting on data. expecting block " + expectedBlock);
 		socket.receive(dataPacket);
-
+		
 		int receivedBlock = dataPacket.getData()[2] + dataPacket.getData()[3];
+		System.err.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock);
+		
+		byte[] buf = new byte[BUFSIZE];
 
+		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
+		buf[0] = 0;
+		buf[1] = OP_ACK;
+		
+		buf[2] = (byte) (expectedBlock >> 8 & 0xFF);
+		buf[3] = (byte) (expectedBlock & 0xFF);
+
+		System.out.println("sending ack. block " + receivedBlock);
+		System.out.println("----");
 		socket.send(ackPacket);
 		
-		return block == receivedBlock;
+		return expectedBlock == receivedBlock;
 	}
 	
 	private void send_ERR()	{
