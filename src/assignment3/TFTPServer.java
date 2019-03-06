@@ -10,7 +10,9 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.util.Random;
 
 //TODO blir inget felmeddelande om man försöker getta till en icke existerande mapp
 public class TFTPServer 
@@ -18,6 +20,9 @@ public class TFTPServer
 	public static final int TFTPPORT = 4970;
 	public static final int BUFSIZE = 516;
 	public static final int BLOCK_SIZE = 512;
+
+	static final int MAX_RETRANSMIT_ATTEMPTS = 5;
+	static final int TRANSMIT_TIMEOUT = 2000;
 
 	public static final String READDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/server-files/"; //custom address at your PC
 	public static final String WRITEDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/uploaded-files/"; //custom address at your PC
@@ -69,6 +74,7 @@ public class TFTPServer
 					public void run() {
 						try {
 							DatagramSocket sendSocket = new DatagramSocket(0);
+							sendSocket.setSoTimeout(TRANSMIT_TIMEOUT);
 
 							// Connect to client
 							sendSocket.connect(clientAddress);
@@ -181,18 +187,17 @@ public class TFTPServer
 				System.out.println("prepared to send block " + (buf[2] + buf[3]) + ": " + bytesRead + " B");
 
 				// send and wait for acknowledgement
-				DatagramPacket packet = new DatagramPacket(buf, bytesRead + offset); // TODO testing w/o offset 0 in arg
-				packetAcknowledged = false;
-				while(!packetAcknowledged) // TODO include a maximum time
-					packetAcknowledged = send_DATA_receive_ACK(packet, sendSocket, block); // TODO should include a timeout
+				DatagramPacket packet = new DatagramPacket(buf, bytesRead + offset);
+
+				packetAcknowledged = send_DATA_receive_ACK(packet, sendSocket, block);
 				block ++;
 			}
-			while(bytesRead == BLOCK_SIZE);
+			while(bytesRead == BLOCK_SIZE && packetAcknowledged);
 			//TODO debug prints
 			if(fis.available() == 0)
-				System.out.println("--transfer done");
+				System.out.println("--TRANSFER DONE");
 			else
-				System.out.println("--transfer failure");
+				System.err.println("--TRANSFER FAILURE");
 			fis.close();
 		}
 		// Write ReQuest
@@ -247,17 +252,51 @@ public class TFTPServer
 	*/
 
 	private boolean send_DATA_receive_ACK(DatagramPacket packet, DatagramSocket socket, int expectedBlock) throws IOException {
-		//TODO need timeout function. return false if timed out
-		socket.send(packet);
+		int receivedBlock = -1, transmitAttempts = 0;
+		boolean receivedExpectedAck = false;
 		
 		byte[] buf = new byte[BUFSIZE];
+		while(receivedExpectedAck || receivedBlock != expectedBlock) {
+			
+			try {
+				Thread.sleep(5); // TODO debug. to make sure System.outs and System.errs is printed in the correct order.
+				System.out.println("sending packet...");
+				socket.send(packet);
+				DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
+				System.out.println("packet sent. waiting on ack. expecting block " + expectedBlock); //TODO debug
+				
+				socket.receive(ackPacket);
+				receivedBlock = buf[2] + buf[3];
+				receivedExpectedAck = true;
 
-		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
+				//TODO debug
+				if(receivedBlock != expectedBlock) {
+					transmitAttempts ++;
+					System.err.print("Attempt " + transmitAttempts + ": Received block is not equal to expected block. Received " + receivedBlock + ", expected " + expectedBlock + ". ");
+				}
+				else //TODO refactor
+					break;
+			}
+			catch(SocketTimeoutException e) {
+				transmitAttempts ++;
+				System.err.print("Attempt " + transmitAttempts + ": Ack receive timed out. "); //TODO debug
+			}
+			catch(InterruptedException e) { //TODO debug
+				System.out.println("INTERRUPTED");
+			}
+			
+			if(transmitAttempts >= MAX_RETRANSMIT_ATTEMPTS) {
+				System.err.println("Maximum re-transmit attempts reached. Aborting file transfer");
+				//TODO send_ERR to stop the client
+				return false;
+			}
+			else
+				System.err.println("Re-sending packet");
 
-		System.out.println("waiting on ack. expecting block " + expectedBlock);
-		socket.receive(ackPacket);
-		int receivedBlock = buf[2] + buf[3];
-		System.err.println("ACK RECEIVED. BLOCK=" + receivedBlock);
+		}
+
+		System.out.println("ACK RECEIVED. BLOCK=" + receivedBlock);
+		System.out.println();
 		
 		return receivedBlock == expectedBlock;
 	}
@@ -267,7 +306,7 @@ public class TFTPServer
 		socket.receive(dataPacket);
 		
 		int receivedBlock = dataPacket.getData()[2] + dataPacket.getData()[3];
-		System.err.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock);
+		System.out.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock);
 		
 		byte[] buf = new byte[BUFSIZE];
 
