@@ -207,20 +207,13 @@ public class TFTPServer
 		// Write ReQuest
 		else if (opcode == OP_WRQ) { // TODO needs refactoring
 			byte[] buf = new byte[BUFSIZE];
-			// short block = 0;
+			final short HANDSHAKE_BLOCK = 0;
 
 			// ByteBuffer bb = ByteBuffer.wrap(buf);
 			ByteBuffer bb = ByteBuffer.allocate(4); // TODO use constant for 4
 			
-			// opCode ACK (04)
 			bb.putShort(OP_ACK);
-			// buf[0] = 0;
-			// buf[1] = OP_ACK;
-			
-			// Block number 0
-			// buf[2] = 0;
-			// buf[3] = (byte) block;
-			bb.putShort((short) 0);
+			bb.putShort(HANDSHAKE_BLOCK);
 
 			final int OFFSET = 4;
 
@@ -249,7 +242,7 @@ public class TFTPServer
 			if(packetAcknowledged) {
 				String[] fileData = requestedFile.split("/");
 				String fileName = fileData[fileData.length - 1];
-				System.out.println("Successfully transferred " + fileName + " (" + receivePacket.getLength() + " B) from " + sendSocket.getInetAddress());
+				System.out.println("Successfully transferred " + fileName + " (" + fileSize + " B) from " + sendSocket.getInetAddress());
 
 			}
 			else
@@ -298,6 +291,8 @@ public class TFTPServer
 		return true;
 	}
 	
+
+	boolean test = false;
 	// PUT
 	private boolean receive_DATA_send_ACK(DatagramPacket dataPacket, DatagramSocket socket) throws IOException { //, short expectedBlock
 		System.out.println("waiting on data");// expecting block " + expectedBlock);
@@ -305,8 +300,9 @@ public class TFTPServer
 		int transferAttempt = 0;
 		ByteBuffer bb = ByteBuffer.allocate(4);
 		ByteBuffer bb2 = ByteBuffer.wrap(dataPacket.getData()); //rename
-		short receivedBlock = 0;
-		while(true) {
+		short receivedBlock = 0, receivedOpcode = -1;
+
+		while(true) { //TODO handle stuff when client aborts. sends block 0, but maybe it also sends something else?
 			transferAttempt ++;
 			if(transferAttempt == MAX_RETRANSMIT_ATTEMPTS)
 				return false;
@@ -314,16 +310,16 @@ public class TFTPServer
 				//TODO times out if ack packet wasn't received by client and the client is waiting for an ack while server is waiting for data at the same time
 				socket.receive(dataPacket);
 
+				receivedOpcode = bb2.getShort(0);
 				receivedBlock = bb2.getShort(2);
-
-				//interrupted by client or file size too big
-				// if(receivedBlock == 0) {
-				// 	System.out.println("interrupted by client or file size too big");
-				// 	return false;
-				// }
-
-				System.out.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock);
-	
+				
+				System.out.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock + ", OP_CODE=" + receivedOpcode);
+				
+				//interrupted by client
+				//TODO make this a separate method
+				if(receivedOpcode == 5) //receivedBlock == 0 && 
+					return false;
+				
 				bb.putShort(OP_ACK);
 				bb.putShort((short) receivedBlock);
 				
