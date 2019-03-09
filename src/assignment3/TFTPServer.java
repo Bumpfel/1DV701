@@ -8,10 +8,12 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.net.PortUnreachableException;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
 
 //TODO blir inget felmeddelande om man försöker getta till en icke existerande mapp
@@ -22,7 +24,7 @@ public class TFTPServer
 	public static final int BLOCK_SIZE = 512;
 
 	static final int MAX_RETRANSMIT_ATTEMPTS = 6;
-	static final int TRANSMIT_TIMEOUT = 3000;
+	static final int TRANSMIT_TIMEOUT = 5000;
 
 	public static final String READDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/server-files/"; //custom address at your PC
 	public static final String WRITEDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/uploaded-files/"; //custom address at your PC
@@ -83,7 +85,7 @@ public class TFTPServer
 
 							System.out.print((reqtype == OP_RRQ) ? "Read" : "Write");
 							System.out.println(" request for " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
-							
+
 							// Read request
 							if (reqtype == OP_RRQ) {
 								requestedFile.insert(0, READDIR);
@@ -173,7 +175,7 @@ public class TFTPServer
 
 			ByteBuffer bb = ByteBuffer.allocate(BUFSIZE);
 
-			do { //TODO max file size 32 mb? can't seem to reset block
+			do {
 				bb.clear();
 				bb.putShort(OP_DAT);
 				bb.putShort(block);
@@ -181,7 +183,7 @@ public class TFTPServer
 				// read to buffer if stream contains data 
 				if(fis.available() > 0)
 					bytesRead = fis.read(buf, 0, buf.length);
-				else // send a termination packet with no data
+				else
 					bytesRead = 0;
 				
 				bb.put(buf);
@@ -192,7 +194,9 @@ public class TFTPServer
 				block ++;
 			}
 			while(bytesRead == BLOCK_SIZE && packetAcknowledged && block != 0); // could throw some kind of exception instead from the send method
-			if(block == 0) // > 65535 packets
+
+			//TODO debug and error handling. add sendErrs
+			if(block == 0) // short overflowed meaning maximum file transfer size exceeded
 				System.err.println("Could't transfer entire file. File too big"); // TODO warning before starting? refuse to start?
 			else if(packetAcknowledged)
 				System.out.println("Successfully transferred " + file.getName() + " (" + file.length() + " B) to " + sendSocket.getInetAddress());
@@ -203,39 +207,53 @@ public class TFTPServer
 		// Write ReQuest
 		else if (opcode == OP_WRQ) { // TODO needs refactoring
 			byte[] buf = new byte[BUFSIZE];
-			short block = 0;
+			// short block = 0;
 
+			// ByteBuffer bb = ByteBuffer.wrap(buf);
+			ByteBuffer bb = ByteBuffer.allocate(4); // TODO use constant for 4
+			
 			// opCode ACK (04)
-			buf[0] = 0;
-			buf[1] = OP_ACK;
+			bb.putShort(OP_ACK);
+			// buf[0] = 0;
+			// buf[1] = OP_ACK;
 			
 			// Block number 0
-			buf[2] = 0;
-			buf[3] = (byte) block;
-			
+			// buf[2] = 0;
+			// buf[3] = (byte) block;
+			bb.putShort((short) 0);
+
 			final int OFFSET = 4;
 
-			DatagramPacket handShakePacket = new DatagramPacket(buf, buf.length);
-			sendSocket.send(handShakePacket); // TODO maybe separate "handshake" to its own method 
-			
+			DatagramPacket handShakePacket = new DatagramPacket(bb.array(), bb.array().length);//buf.length);
+			sendSocket.send(handShakePacket); // TODO maybe separate "handshake" to its own method
+
 			FileOutputStream fos = new FileOutputStream(requestedFile);
 			DatagramPacket receivePacket;
-			block = 1;
+			// block = 1;
 			boolean packetAcknowledged;
-			do {
+			int fileSize = 0;
+			do { // loop once per packet
 				receivePacket = new DatagramPacket(buf, buf.length);
 				
 				packetAcknowledged = false;
-				while(!packetAcknowledged)
-					packetAcknowledged = receive_DATA_send_ACK(receivePacket, sendSocket, block);
-				block ++;
+				// while(!packetAcknowledged)
+				packetAcknowledged = receive_DATA_send_ACK(receivePacket, sendSocket);//, block);
+				// block ++;
 
 				fos.write(receivePacket.getData(), OFFSET, receivePacket.getLength() - OFFSET);
+				fileSize += receivePacket.getLength();
 			}
-			while(receivePacket.getLength() - OFFSET == BLOCK_SIZE);
+			while(receivePacket.getLength() - OFFSET == BLOCK_SIZE && packetAcknowledged);
 			
 			//TODO debug prints
-			System.out.println("--transfer done");
+			if(packetAcknowledged) {
+				String[] fileData = requestedFile.split("/");
+				String fileName = fileData[fileData.length - 1];
+				System.out.println("Successfully transferred " + fileName + " (" + receivePacket.getLength() + " B) from " + sendSocket.getInetAddress());
+
+			}
+			else
+				System.err.println("Transfer error");
 			fos.close();
 
 		}
@@ -249,21 +267,28 @@ public class TFTPServer
 	
 	// GET
 	private boolean send_DATA_receive_ACK(DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException {
-		int receivedBlock = -1, transmitAttempt = 1;
+		int receivedBlock = -1, transferAttempt = 1;
 		
 		byte[] buf = new byte[BUFSIZE];
 		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
 		ByteBuffer bb = ByteBuffer.wrap(buf);
 		do {
+			if(transferAttempt > 1)
+				System.err.println("Re-sending packet");
 			try {
 				socket.send(dataPacket);
 				socket.receive(ackPacket);
 				receivedBlock = bb.getShort(2); // byte 2 and 3
-				transmitAttempt ++;
 			}
 			catch(SocketTimeoutException e) {
+				System.err.println("Attempt " + transferAttempt + ": ack receive timed out"); //debug
 			}
-			if(transmitAttempt >= MAX_RETRANSMIT_ATTEMPTS) {
+			catch(PortUnreachableException e) { //TODO not sure this is the correct way to do it. unsure when this exception is thrown
+				System.err.println("Connection broken");
+				return false;
+			}
+			transferAttempt ++;
+			if(transferAttempt >= MAX_RETRANSMIT_ATTEMPTS) {
 				//TODO send_ERR to stop the client
 				return false;
 			}
@@ -274,38 +299,53 @@ public class TFTPServer
 	}
 	
 	// PUT
-	private boolean receive_DATA_send_ACK(DatagramPacket dataPacket, DatagramSocket socket, int expectedBlock) throws IOException {
-		System.out.println("waiting on data. expecting block " + expectedBlock);
+	private boolean receive_DATA_send_ACK(DatagramPacket dataPacket, DatagramSocket socket) throws IOException { //, short expectedBlock
+		System.out.println("waiting on data");// expecting block " + expectedBlock);
 
-		int receiveAttempts = 0;
-		while(receiveAttempts < MAX_RETRANSMIT_ATTEMPTS) {
+		int transferAttempt = 0;
+		ByteBuffer bb = ByteBuffer.allocate(4);
+		ByteBuffer bb2 = ByteBuffer.wrap(dataPacket.getData()); //rename
+		short receivedBlock = 0;
+		while(true) {
+			transferAttempt ++;
+			if(transferAttempt == MAX_RETRANSMIT_ATTEMPTS)
+				return false;
 			try {
+				//TODO times out if ack packet wasn't received by client and the client is waiting for an ack while server is waiting for data at the same time
 				socket.receive(dataPacket);
+
+				receivedBlock = bb2.getShort(2);
+
+				//interrupted by client or file size too big
+				// if(receivedBlock == 0) {
+				// 	System.out.println("interrupted by client or file size too big");
+				// 	return false;
+				// }
+
+				System.out.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock);
+	
+				bb.putShort(OP_ACK);
+				bb.putShort((short) receivedBlock);
 				
+				System.out.println("sending ack. block " + receivedBlock); // TODO debug
+				
+				DatagramPacket ackPacket = new DatagramPacket(bb.array(), bb.array().length);
+				
+				socket.send(ackPacket);
+				System.out.println("----");
+
+				break;
 			}
-			catch(SocketTimeoutException e){
-				receiveAttempts ++;
-				System.out.println("receive timed out");
+			catch(SocketTimeoutException e) {
+				System.err.println("Attempt " + transferAttempt + ": receive timed out"); // debug
+			}
+			catch(ArrayIndexOutOfBoundsException e) { // not sure if necessary. should only happen if client sends faulty packet or it becomes corrupted
+				System.out.println("Server error");
+				return false;
 			}
 		}
-		
-		int receivedBlock = dataPacket.getData()[2] + dataPacket.getData()[3];
-		System.out.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock);
-		
-		byte[] buf = new byte[BUFSIZE];
 
-		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
-		buf[0] = 0;
-		buf[1] = OP_ACK;
-		
-		buf[2] = (byte) (expectedBlock >> 8 & 0xFF);
-		buf[3] = (byte) (expectedBlock & 0xFF);
-
-		System.out.println("sending ack. block " + receivedBlock);
-		System.out.println("----");
-		socket.send(ackPacket);
-		
-		return expectedBlock == receivedBlock;
+		return true;
 	}
 	
 	private void send_ERR()	{
