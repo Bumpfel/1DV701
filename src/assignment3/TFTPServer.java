@@ -1,34 +1,27 @@
 package assignment3;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
-import java.net.PortUnreachableException;
 import java.net.SocketAddress;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Random;
 
 //TODO blir inget felmeddelande om man försöker getta till en icke existerande mapp
+//TODO find out the dealio with Mode octet. also check max filename size, or rather that the 0 byte is found at the end
 public class TFTPServer {
 
-	//TODO could make non static
-	static final int TFTPPORT = 4970;
-	static final int BUFSIZE = 516;
-	static final int BLOCK_SIZE = 512; // TODO better name? FULL_BLOCK_SIZE ?
+	//TODO (small) could make non static
+	static final int TFTP_PORT = 4970;
+	static final int BUF_SIZE = 516;
+	static final int BLOCK_SIZE = 512;
 
-	static final int MAX_RETRANSMIT_ATTEMPTS = 6; // TODO rename? transfer, not transmit?
-	static final int TRANSFER_TIMEOUT = 5000;
+	static final int MAX_RETRANSMIT_ATTEMPTS = 5; // TODO (small) rename? transfer, not transmit?
+	static final int TRANSFER_TIMEOUT = 3000;
 
-	static final String READDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/server-files/"; //custom address at your PC
-	static final String WRITEDIR = "c:/users/eric/documents/github/java/1dv701/src/assignment3/uploaded-files/"; //custom address at your PC
+	static final String READ_DIR = "src/assignment3/server-files/"; //custom address at your computer
+	static final String WRITE_DIR = "src/assignment3/uploaded-files/"; //custom address at your computer
 	
 	// OP codes
 	public static final short OP_RRQ = 1;
@@ -36,6 +29,16 @@ public class TFTPServer {
 	public static final short OP_DAT = 3;
 	public static final short OP_ACK = 4;
 	public static final short OP_ERR = 5;
+
+	// Error codes
+	public static final short ERROR_UNDEFINED = 0;
+	public static final short ERROR_FILENOTFOUND = 1;
+	public static final short ERROR_ACCESS = 2;
+	public static final short ERROR_DISKFULL = 3;
+	public static final short ERROR_ILLEGAL = 4;
+	public static final short ERROR_TRANSFERID = 5;
+	public static final short ERROR_FILEEXISTS = 6;
+	public static final short ERROR_NOSUCHUSER = 7;
 
 	public static void main(String[] args) {
 		if (args.length > 0) {
@@ -53,13 +56,13 @@ public class TFTPServer {
 	}
 	
 	private void start() throws SocketException {
-		byte[] buf= new byte[BUFSIZE];
+		byte[] buf = new byte[BUF_SIZE];
 		
 		DatagramSocket socket = new DatagramSocket(null);
-		SocketAddress localBindPoint = new InetSocketAddress(TFTPPORT);
+		SocketAddress localBindPoint = new InetSocketAddress(TFTP_PORT);
 		socket.bind(localBindPoint);
 
-		System.out.printf("Listening at port %d for new requests\n", TFTPPORT);
+		System.out.printf("Listening at port %d for new requests\n", TFTP_PORT);
 
 		// Loop to handle client requests 
 		while (true) {
@@ -71,48 +74,9 @@ public class TFTPServer {
 					continue;
 
 				final StringBuffer requestedFile = new StringBuffer();
-				final int reqtype = ParseRQ(buf, requestedFile);
+				final int reqType = parseRQ(buf, requestedFile);
 
-				//TODO maybe separate this thread into its own class?
-				new Thread() {
-					public void run() {
-						try {
-							DatagramSocket sendSocket = new DatagramSocket(0);
-							sendSocket.setSoTimeout(TRANSFER_TIMEOUT);
-
-							// Connect to client
-							sendSocket.connect(clientAddress);
-							
-							System.out.println("host: " + clientAddress.getHostName());
-
-							System.out.print((reqtype == OP_RRQ) ? "Read" : "Write");
-							System.out.println(" request for " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
-
-							// Read request
-							if (reqtype == OP_RRQ) {
-								requestedFile.insert(0, READDIR);
-								HandleRQ(sendSocket, requestedFile.toString(), OP_RRQ);
-							}
-							// Write request
-							else {
-								requestedFile.insert(0, WRITEDIR);
-								HandleRQ(sendSocket, requestedFile.toString(),OP_WRQ);
-							}
-							sendSocket.close();
-						}
-						catch(SocketException e) {
-								e.printStackTrace();
-						}
-						catch(FileNotFoundException e) {
-							System.err.println("Bad request: file not found");
-							// e.printStackTrace();
-							//TODO Send ERR
-						}
-						catch(IOException e) {
-							e.printStackTrace();
-						}
-					}
-				}.start();
+				new ServerThread(clientAddress, reqType, requestedFile).start();
 			}
 			catch(IOException e) {
 				System.err.println(e.getMessage());
@@ -143,122 +107,21 @@ public class TFTPServer {
 	 * @param requestedFile (name of file to read/write)
 	 * @return opcode (request type: RRQ or WRQ)
 	 */
-	private int ParseRQ(byte[] buf, StringBuffer requestedFile) throws IndexOutOfBoundsException { //TODO (small) not sure the throw is necessary
+	private int parseRQ(byte[] buf, StringBuffer requestedFile) throws IndexOutOfBoundsException { //TODO (small) not sure the throw is necessary
 		int opCode = buf[0] + buf[1];
 	
+		boolean foundFinalByte = false;
 		for(int i = 2; i < buf.length; i ++) {
 			// 0-byte
 			if(buf[i] == 0) {
+				foundFinalByte = true;
 				break;
 			}
 			requestedFile.append((char) buf[i]);
 		}
+		if(!foundFinalByte)
+			return -1;
 		return opCode;
-	}
-
-	/**
-	 * Handles RRQ and WRQ requests 
-	 * 
-	 * @param sendSocket (socket used to send/receive packets)
-	 * @param requestedFile (name of file to read/write)
-	 * @param opcode (RRQ or WRQ)
-	 */
-	private void HandleRQ(DatagramSocket sendSocket, String requestedFile, int opcode) throws IOException {
-		TransferHandler handler = new TransferHandler();
-
-		// Read ReQuest
-		if(opcode == OP_RRQ) {
-			File file = new File(requestedFile);
-			byte[] buf = new byte[BLOCK_SIZE];
-			
-			FileInputStream fis = new FileInputStream(file);
-			boolean packetAcknowledged = false;
-			short block = 1;
-			int bytesRead;
-			final int HEADER_LENGTH = 4;
-
-			ByteBuffer bb = ByteBuffer.allocate(BUFSIZE);
-
-			do {
-				bb.clear();
-				bb.putShort(OP_DAT);
-				bb.putShort(block);
-				
-				// read to buffer if stream contains data 
-				if(fis.available() > 0)
-					bytesRead = fis.read(buf, 0, buf.length);
-				else
-					bytesRead = 0;
-				
-				bb.put(buf);
-				DatagramPacket packet = new DatagramPacket(bb.array(), bytesRead + HEADER_LENGTH);
-				
-				// send and wait for acknowledgement
-				packetAcknowledged = handler.send_DATA_receive_ACK(packet, sendSocket, block);
-				block ++;
-			}
-			while(bytesRead == BLOCK_SIZE && packetAcknowledged);
-
-			//TODO debug and error handling. add sendErrs
-			if(packetAcknowledged)
-				System.out.println("Successfully transferred " + file.getName() + " (" + file.length() + " B) to " + sendSocket.getInetAddress());
-			else
-				System.err.println("Transfer error");
-			fis.close();
-		}
-		// Write ReQuest
-		else if (opcode == OP_WRQ) { // TODO needs refactoring
-			final short HANDSHAKE_BLOCK = 0;
-			
-			ByteBuffer bb = ByteBuffer.allocate(4); // TODO use constant for 4
-			
-			bb.putShort(OP_ACK);
-			bb.putShort(HANDSHAKE_BLOCK);
-
-			final int OFFSET = 4;
-			
-			DatagramPacket handShakePacket = new DatagramPacket(bb.array(), bb.array().length);//buf.length);
-			sendSocket.send(handShakePacket); // TODO maybe separate "handshake" to its own method
-
-			FileOutputStream fos = new FileOutputStream(requestedFile);
-			DatagramPacket receivePacket;
-			boolean packetAcknowledged;
-			int fileSize = 0;
-			byte[] buf = new byte[BUFSIZE];
-			do { // loop once per packet
-				receivePacket = new DatagramPacket(buf, buf.length);
-				
-				packetAcknowledged = false;
-				packetAcknowledged = handler.receive_DATA_send_ACK(receivePacket, sendSocket);
-
-				fos.write(receivePacket.getData(), OFFSET, receivePacket.getLength() - OFFSET);
-				fileSize += receivePacket.getLength();
-			}
-			while(receivePacket.getLength() - OFFSET == BLOCK_SIZE && packetAcknowledged);
-			
-			//TODO debug prints
-			if(packetAcknowledged) {
-				String[] fileData = requestedFile.split("/");
-				String fileName = fileData[fileData.length - 1];
-				System.out.println("Successfully transferred " + fileName + " (" + fileSize + " B) from " + sendSocket.getInetAddress());
-
-			}
-			else
-				System.err.println("Transfer error");
-			fos.close();
-
-		}
-		else {
-			System.err.println("Invalid request. Sending an error packet.");
-			// See "TFTP Formats" in TFTP specification for the ERROR packet contents
-			send_ERR();
-			return;
-		}		
-	}
-	
-	
-	
-	private void send_ERR()	{
 	}
 	
 }

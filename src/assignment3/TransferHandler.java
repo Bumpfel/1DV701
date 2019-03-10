@@ -6,14 +6,15 @@ import java.net.DatagramSocket;
 import java.net.PortUnreachableException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.util.Random;
 
 public class TransferHandler {
 
     // Client GET
-	boolean send_DATA_receive_ACK(DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException {
+	public boolean sendDataReceiveAck(DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException {
 		int receivedBlock = 0, transferAttempt = 0;
 		
-		byte[] buf = new byte[TFTPServer.BUFSIZE];
+		byte[] buf = new byte[TFTPServer.BUF_SIZE];
 		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
 		ByteBuffer bb = ByteBuffer.wrap(buf);
 		do {
@@ -28,6 +29,10 @@ public class TransferHandler {
 				socket.send(dataPacket);
 				socket.receive(ackPacket);
                 receivedBlock = bb.getShort(2); // byte 2 and 3
+
+                // client sent error
+                if(isErroneous(bb.getShort(0)))
+                    return false;
 			}
 			catch(SocketTimeoutException e) {
 				System.err.println("Attempt " + transferAttempt + ": ack receive timed out"); //TODO debug
@@ -42,60 +47,77 @@ public class TransferHandler {
 		return true;
 	}
 	
-
 	// Client PUT
-	boolean receive_DATA_send_ACK(DatagramPacket dataPacket, DatagramSocket socket) throws IOException {
-		System.out.println("waiting on data");
-
+	public boolean receiveDataSendAck(DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException {
+		
 		int transferAttempt = 0;
-		ByteBuffer bb = ByteBuffer.allocate(4);
-		ByteBuffer bb2 = ByteBuffer.wrap(dataPacket.getData()); //rename
+		ByteBuffer ackBB = ByteBuffer.allocate(4);
+		ByteBuffer dataBB = ByteBuffer.wrap(dataPacket.getData()); //rename
 		short receivedBlock = 0, receivedOpCode = -1;
-
-		while(true) { //TODO handle stuff when client aborts. sends block 0, but maybe it also sends something else?
+		
+		while(true) {
+			// System.out.println("Waiting on data. Expecting block " + expectedBlock);
 			transferAttempt ++;
 			if(transferAttempt == TFTPServer.MAX_RETRANSMIT_ATTEMPTS)
 				return false;
 			try {
-				//TODO times out if ack packet wasn't received by client and the client is waiting for an ack while server is waiting for data at the same time
+				//TODO (hard) times out if ack packet wasn't received by client and the client is waiting for an ack while server is waiting for data at the same time. test by disabling socket.receive()
 				socket.receive(dataPacket);
 
-				receivedOpCode = bb2.getShort(0);
-				receivedBlock = bb2.getShort(2);
+				receivedOpCode = dataBB.getShort(0);
+				receivedBlock = dataBB.getShort(2);
 				
-				System.out.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock + ", OP_CODE=" + receivedOpCode);
-				
-				//interrupted by client
+				// client sent error, e.g. interrupted by client
                 if(isErroneous(receivedOpCode))
-                    return false;
+					return false;
 				
-				bb.putShort(TFTPServer.OP_ACK);
-				bb.putShort((short) receivedBlock);
+				// receivedBlock = (short) (receivedBlock - new Random().nextInt(2)); //TODO INTRODUCING a fault to trigger re-send
+				// System.out.println("RECEIVED " + dataPacket.getLength() + " B. BLOCK=" + receivedBlock);
 				
-				System.out.println("sending ack. block " + receivedBlock); // TODO debug
+				ackBB.putShort(0, TFTPServer.OP_ACK);
+				ackBB.putShort(2, receivedBlock);
 				
-				DatagramPacket ackPacket = new DatagramPacket(bb.array(), bb.array().length);
+				// System.out.println("sending ack. block " + receivedBlock); // TODO debug
+				
+				byte[] arr = ackBB.array();
+				DatagramPacket ackPacket = new DatagramPacket(arr, arr.length);
                 
 				socket.send(ackPacket);
-				System.out.println("----");
+				// System.out.println("----");
+
+				// prevents writing received data to file if received data was old
+				if(receivedBlock != expectedBlock)
+					continue;
                 
-				break;
+				return true;
 			}
 			catch(SocketTimeoutException e) {
-				System.err.println("Attempt " + transferAttempt + ": receive timed out"); // debug
+				System.err.println("Attempt " + transferAttempt + ": receive timed out");
 			}
-			catch(ArrayIndexOutOfBoundsException e) { // not sure if necessary. should only happen if client sends faulty packet or it becomes corrupted
+			catch(ArrayIndexOutOfBoundsException e) { // TODO not sure if necessary. should only happen if client sends faulty packet or it becomes corrupted
 				System.out.println("Server error");
 				return false;
 			}
 		}
-
-		return true;
     }
-    
 
-    boolean isErroneous(short opCode) {
+    public void sendError(DatagramSocket socket, short errCode, String errMsg) throws IOException {
+		if(errCode < 0 || errCode > 7)
+			throw new IllegalArgumentException("Error code is not a valid TFTP code");
+
+        int packetLength = 4 + errMsg.length() + 1;
+        ByteBuffer bb = ByteBuffer.allocate(packetLength);
+
+        bb.putShort(TFTPServer.OP_ERR);
+        bb.putShort(errCode);
+        bb.put(errMsg.getBytes());
+        bb.put((byte) 0);
+
+        DatagramPacket errPacket = new DatagramPacket(bb.array(), packetLength);
+        socket.send(errPacket);
+    }
+
+    private boolean isErroneous(short opCode) {
         return opCode == TFTPServer.OP_ERR;
-
     }
 }
