@@ -19,6 +19,7 @@ public class ServerThread extends Thread {
     private InetSocketAddress clientAddress;
     private StringBuffer requestedFile;
     private int requestType;
+    private final long MAX_FILE_SIZE = (long) (100 * Math.pow(1024, 2));
 
     public ServerThread(InetSocketAddress clAddress, int reqType, StringBuffer reqFile) {
         try {
@@ -74,7 +75,6 @@ public class ServerThread extends Thread {
             }
             catch(IOException e2) {
             }
-            // e.printStackTrace();
         }
 
     }
@@ -130,7 +130,7 @@ public class ServerThread extends Thread {
 				System.out.println("Successfully transferred " + newFile.getName() + " (" + formatFileSize(newFile.length()) + "B) to " + clientAddress.getHostName());
 			else {
                 handler.sendError(sendSocket, TFTPServer.ERROR_UNDEFINED, "Transfer timed out");
-                System.err.println("Transfer error");
+                System.err.println("Transfer error sending " + newFile.getName() + " to " + clientAddress.getHostName());
             }
 		}
 		// Write ReQuest
@@ -160,13 +160,23 @@ public class ServerThread extends Thread {
             FileOutputStream fos = new FileOutputStream(newFile);
             // iterates once per packet
             short expectedBlock = 1;
+            long bytesWritten = 0;
 			do {
+                packetAcknowledged = false;
 				receivePacket = new DatagramPacket(buf, buf.length);
 				
-				packetAcknowledged = false;
 				packetAcknowledged = handler.receiveDataSendAck(receivePacket, sendSocket, expectedBlock ++);
-
-				fos.write(receivePacket.getData(), HEADER_SIZE, receivePacket.getLength() - HEADER_SIZE);
+                
+                //TODO testing error 3 allocation exceeded
+                bytesWritten += TFTPServer.BLOCK_SIZE;
+                if(bytesWritten > MAX_FILE_SIZE) {
+                    fos.close();
+                    newFile.delete();
+                    handler.sendError(sendSocket, TFTPServer.ERROR_DISKFULL, "Maximum file size exceeded");
+                    break;
+                }
+                
+                fos.write(receivePacket.getData(), HEADER_SIZE, receivePacket.getLength() - HEADER_SIZE);
 			}
 			while(receivePacket.getLength() == TFTPServer.BUF_SIZE && packetAcknowledged);
             fos.close();
@@ -175,7 +185,7 @@ public class ServerThread extends Thread {
 				System.out.println("Successfully transferred " + newFile.getName() + " (" + formatFileSize(newFile.length()) + "B) from " + clientAddress.getHostName());
 			else {
                 handler.sendError(sendSocket, TFTPServer.ERROR_UNDEFINED, "Transfer timed out");
-                System.err.println("Transfer error receiving " + newFile.getName() +" from " + clientAddress.getHostName() + ". Deleting file");
+                System.err.println("Transfer error receiving " + newFile.getName() + " from " + clientAddress.getHostName() + ". Deleting file");
                 newFile.delete();
             }
 		}
