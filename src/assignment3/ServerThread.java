@@ -13,23 +13,32 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.text.DecimalFormat;
 
+import assignment3.exceptions.IllegalTFTPOperationException;
+import assignment3.exceptions.TransferTimedOutException;
+import assignment3.exceptions.UnknownTransferIDException;
+
 public class ServerThread extends Thread {
 
-    private DatagramSocket sendSocket;
+    private DatagramSocket socket;
     private InetSocketAddress clientAddress;
-    private StringBuffer requestedFile;
+    private TransferHandler handler = new TransferHandler();
     private int requestType;
-    private final long MAX_FILE_SIZE = (long) (100 * Math.pow(1024, 2));
+    private StringBuffer requestedFile;
+    private String mode; //TODO dno if I'll use it or immediately reject non octet mode packets
+    private final long MAX_FILE_SIZE = (long) (100 * Math.pow(1024, 2)); // 100 MB
+    // private final double AVAILABLE_HDD_SPACE = 100 * Math.pow(1024, 2); //100 MB
 
-    public ServerThread(InetSocketAddress clAddress, int reqType, StringBuffer reqFile) {
+    //TODO deal with mode (netascii/octet)?
+    public ServerThread(int newRequestType, InetSocketAddress newClientAddress, StringBuffer newRequestedFile, String newMode) {
         try {
-            sendSocket = new DatagramSocket(0);
-            sendSocket.setSoTimeout(TFTPServer.TRANSFER_TIMEOUT);
-            sendSocket.connect(clAddress);
-            
-            clientAddress = clAddress;
-            requestedFile = reqFile;
-            requestType = reqType;
+            requestType = newRequestType;
+            clientAddress = newClientAddress;
+            requestedFile = newRequestedFile;
+            mode = newMode;
+
+            socket = new DatagramSocket(0);
+            socket.setSoTimeout(TFTPServer.TRANSFER_TIMEOUT);
+            socket.connect(clientAddress);
         }
         catch(SocketException e) {
             System.err.println(e.getMessage());
@@ -38,57 +47,64 @@ public class ServerThread extends Thread {
 
     public void run() {
         try {
-            try {
-                System.out.print((requestType == TFTPServer.OP_RRQ) ? "Read " : "Write ");
-                System.out.println("request from " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
-
-                // Read request
-                if (requestType == TFTPServer.OP_RRQ) {
-                    requestedFile.insert(0, TFTPServer.READ_DIR);
-                    handleRQ(sendSocket, requestedFile.toString(), TFTPServer.OP_RRQ);
-                }
-                // Write request OR invalid request
-                else {
-                    requestedFile.insert(0, TFTPServer.WRITE_DIR);
-                    handleRQ(sendSocket, requestedFile.toString(), TFTPServer.OP_WRQ);
-                }
+            // Read request
+            if (requestType == TFTPServer.OP_RRQ) {
+                requestedFile.insert(0, TFTPServer.READ_DIR);
+                handleRQ(socket, requestedFile.toString(), TFTPServer.OP_RRQ);
             }
-            catch(SocketException e) {
-                System.err.println();
-                e.printStackTrace(); //TODO printstacktrace
+            // Write request
+            else if(requestType == TFTPServer.OP_WRQ) {
+                requestedFile.insert(0, TFTPServer.WRITE_DIR);
+                handleRQ(socket, requestedFile.toString(), TFTPServer.OP_WRQ);
             }
-            catch(FileAlreadyExistsException e) {
-                new TransferHandler().sendError(sendSocket, TFTPServer.ERROR_ACCESS, "A file with that name already exists on the server");
-                System.err.print((requestType == TFTPServer.OP_RRQ) ? "Read " : "Write ");
-                System.err.println("request from " + clientAddress.getHostName() + " denied: file exists"); // server print
+            else {
+                throw new IllegalTFTPOperationException();
             }
-            catch(FileNotFoundException e) { // can also be caused by no read access (in that case, file existence is kept hidden from client)
-                new TransferHandler().sendError(sendSocket, TFTPServer.ERROR_FILENOTFOUND, "Requested file not found"); 
-                System.err.print((requestType == TFTPServer.OP_RRQ) ? "Read " : "Write ");
-                System.err.println("request from " +  clientAddress.getHostName() + " denied: file not found or file read access denied"); // server print
-            }
+            System.out.print((requestType == TFTPServer.OP_RRQ) ? "Read " : "Write ");
+            System.out.println("request for " + requestedFile + " from " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
+        }
+        catch(SocketException e) {
+            System.err.println();
+            e.printStackTrace(); //TODO printstacktrace
+        }
+        catch(FileAlreadyExistsException e) {
+            handler.sendError(socket, TFTPServer.ERROR_ACCESS, "A file with that name already exists on the server");
+            System.err.print((requestType == TFTPServer.OP_RRQ) ? "Read " : "Write ");
+            System.err.println("request from " + clientAddress.getHostName() + " denied: file exists"); // server print
+        }
+        catch(FileNotFoundException e) { // can also be caused by no read access (in that case, file existence is kept hidden from client)
+            handler.sendError(socket, TFTPServer.ERROR_FILENOTFOUND, "Requested file not found"); 
+            System.err.print((requestType == TFTPServer.OP_RRQ) ? "Read " : "Write ");
+            System.err.println("request from " +  clientAddress.getHostName() + " denied: file not found or file read access denied"); // server print
+        }
+        catch(IllegalTFTPOperationException e) {
+            System.err.println("Invalid request from " + clientAddress.getHostName());
+            handler.sendError(socket, TFTPServer.ERROR_ILLEGAL, "Illegal TFTP operation");
+        }
+        catch(TransferTimedOutException e) {
+            handler.sendError(socket, TFTPServer.ERROR_UNDEFINED, "Transfer timed out");
+            System.err.println(e.getMessage());
+        }
+        catch(UnknownTransferIDException e) {
+            System.err.println("Received packet from " + clientAddress.getHostName() + " does not contain the expected TID");
+            new TransferHandler().sendError(socket, TFTPServer.ERROR_TRANSFERID, "Unknown transfer ID");
         }
         catch(IOException e) {
             System.err.println(e.getMessage());
-            try {
-               new TransferHandler().sendError(sendSocket, TFTPServer.ERROR_UNDEFINED, e.getMessage());
-            }
-            catch(IOException e2) {
-            }
+            handler.sendError(socket, TFTPServer.ERROR_UNDEFINED, e.getMessage());
         }
-
     }
 
     /**
 	 * Handles RRQ and WRQ requests 
 	 * 
-	 * @param sendSocket (socket used to send/receive packets)
+	 * @param socket (socket used to send/receive packets)
 	 * @param requestedFile (name of file to read/write)
 	 * @param opCode (RRQ=1 or WRQ=2)
 	 */
 
     //TODO refactor. this method is huge
-	private void handleRQ(DatagramSocket sendSocket, String requestedFile, int opCode) throws IOException {
+	private void handleRQ(DatagramSocket socket, String requestedFile, int opCode) throws IOException, UnknownTransferIDException, TransferTimedOutException {
 		TransferHandler handler = new TransferHandler();
 
 		// Read ReQuest
@@ -120,17 +136,16 @@ public class ServerThread extends Thread {
 				DatagramPacket packet = new DatagramPacket(bb.array(), bytesRead + HEADER_LENGTH);
 				
 				// send data and wait for acknowledgement
-				packetAcknowledged = handler.sendDataReceiveAck(packet, sendSocket, block);
+				packetAcknowledged = handler.sendDataReceiveAck(packet, socket, block);
 				block ++;
 			}
 			while(bytesRead == TFTPServer.BLOCK_SIZE && packetAcknowledged);
             fis.close();
 
 			if(packetAcknowledged)
-				System.out.println("Successfully transferred " + newFile.getName() + " (" + formatFileSize(newFile.length()) + "B) to " + clientAddress.getHostName());
+				System.out.println("Transferred " + newFile.getName() + " (" + formatFileSize(newFile.length()) + "B) to " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
 			else {
-                handler.sendError(sendSocket, TFTPServer.ERROR_UNDEFINED, "Transfer timed out");
-                System.err.println("Transfer error sending " + newFile.getName() + " to " + clientAddress.getHostName());
+                throw new TransferTimedOutException("Transfer error sending " + newFile.getName() + " to " + clientAddress.getHostName());
             }
 		}
 		// Write ReQuest
@@ -151,28 +166,29 @@ public class ServerThread extends Thread {
 			
 			byte[] arr = bb.array();
 			DatagramPacket handShakePacket = new DatagramPacket(arr, arr.length);
-			sendSocket.send(handShakePacket);
+			socket.send(handShakePacket);
 
 			DatagramPacket receivePacket;
 			boolean packetAcknowledged;
 			byte[] buf = new byte[TFTPServer.BUF_SIZE];
 
             FileOutputStream fos = new FileOutputStream(newFile);
-            // iterates once per packet
             short expectedBlock = 1;
             long bytesWritten = 0;
+            // iterates once per packet
 			do {
                 packetAcknowledged = false;
 				receivePacket = new DatagramPacket(buf, buf.length);
 				
-				packetAcknowledged = handler.receiveDataSendAck(receivePacket, sendSocket, expectedBlock ++);
+				packetAcknowledged = handler.receiveDataSendAck(receivePacket, socket, expectedBlock ++);
                 
                 //TODO testing error 3 allocation exceeded
                 bytesWritten += TFTPServer.BLOCK_SIZE;
-                if(bytesWritten > MAX_FILE_SIZE) {
+                if(bytesWritten >= MAX_FILE_SIZE) {
+                    packetAcknowledged = false;
                     fos.close();
                     newFile.delete();
-                    handler.sendError(sendSocket, TFTPServer.ERROR_DISKFULL, "Maximum file size exceeded");
+                    handler.sendError(socket, TFTPServer.ERROR_DISKFULL, "Maximum file size exceeded");
                     break;
                 }
                 
@@ -182,17 +198,12 @@ public class ServerThread extends Thread {
             fos.close();
             
             if(packetAcknowledged)
-				System.out.println("Successfully transferred " + newFile.getName() + " (" + formatFileSize(newFile.length()) + "B) from " + clientAddress.getHostName());
+				System.out.println("Received " + newFile.getName() + " (" + formatFileSize(newFile.length()) + "B) from " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
 			else {
-                handler.sendError(sendSocket, TFTPServer.ERROR_UNDEFINED, "Transfer timed out");
-                System.err.println("Transfer error receiving " + newFile.getName() + " from " + clientAddress.getHostName() + ". Deleting file");
                 newFile.delete();
+                throw new TransferTimedOutException("Transfer error receiving " + newFile.getName() + " from " + clientAddress.getHostName() + ". Deleting file");
             }
 		}
-		else {
-			System.err.println("Invalid request. Sending an error packet.");
-			handler.sendError(sendSocket, TFTPServer.ERROR_ILLEGAL, "Illegal TFTP operation"); //TODO (small) use a map for error msgs?
-		}		
     }
 
     /**

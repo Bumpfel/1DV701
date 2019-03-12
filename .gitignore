@@ -1,6 +1,6 @@
 /bin/
-*/.vscode/
 *.class
+*/.vscode/
 /src/assignment2/uploads/
 /src/assignment3/server-files/
 /src/assignment3/uploaded-files/
