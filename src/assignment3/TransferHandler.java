@@ -3,28 +3,25 @@ package assignment3;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.PortUnreachableException;
 import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
-import java.util.Random;
 
 import assignment3.exceptions.UnknownTransferIDException;
 
 public class TransferHandler {
 
     // Client GET
-	public boolean sendDataReceiveAck(DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, UnknownTransferIDException {
+	public boolean sendDataReceiveAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, UnknownTransferIDException {
 		int receivedBlock = 0, transferAttempt = 0;
 		
-		byte[] buf = new byte[TFTPServer.BUF_SIZE];
+		byte[] buf = new byte[server.BUF_SIZE];
 		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
 		ByteBuffer bb = ByteBuffer.wrap(buf);
 		do {
             transferAttempt ++;
-            if(transferAttempt > TFTPServer.MAX_TRANSFER_ATTEMPTS)
+            if(transferAttempt > server.MAX_TRANSFER_ATTEMPTS)
 				return false;
 			if(transferAttempt > 1)
 				System.err.println("Re-sending packet");
@@ -54,7 +51,7 @@ public class TransferHandler {
 	}
 	
 	// Client PUT
-	public boolean receiveDataSendAck(DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, UnknownTransferIDException {
+	public boolean receiveDataSendAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, UnknownTransferIDException {
 		
 		int transferAttempt = 0;
 		ByteBuffer ackBB = ByteBuffer.allocate(4);
@@ -64,7 +61,7 @@ public class TransferHandler {
 		while(true) {
 			// System.out.println("Waiting on data. Expecting block " + expectedBlock);
 			transferAttempt ++;
-			if(transferAttempt == TFTPServer.MAX_TRANSFER_ATTEMPTS)
+			if(transferAttempt == server.MAX_TRANSFER_ATTEMPTS)
 				return false;
 			try {
 				//TODO (hard) times out if ack packet wasn't received by client and the client is waiting for an ack while server is waiting for data at the same time. test by disabling socket.receive()
@@ -130,15 +127,7 @@ public class TransferHandler {
 		}
 	}
 
-	private boolean displayOnce = true;
-
 	private void controlTransferID(SocketAddress receivedSourceAddress, SocketAddress sentDestinationAddress) throws UnknownTransferIDException {
-		if(displayOnce) {
-			System.out.println(receivedSourceAddress);
-			System.out.println(sentDestinationAddress);
-			displayOnce = false;
-		}
-	
 		if(!receivedSourceAddress.equals(sentDestinationAddress))
 			throw new UnknownTransferIDException();
 	}

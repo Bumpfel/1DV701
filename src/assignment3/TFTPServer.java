@@ -5,25 +5,25 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.util.HashMap;
-import java.util.Map;
 
-//TODO (small) delete TFTPException if not used
 //TODO blir inget felmeddelande om man försöker getta till en icke existerande mapp
 //TODO find out the dealio with Mode octet. also check max filename size, or rather that the 0 byte is found at the end
 public class TFTPServer {
 
-	//TODO (small) could make non static
-	static final int TFTP_PORT = 4970;
-	static final int BUF_SIZE = 516;
-	static final int BLOCK_SIZE = 512;
+	// Server Settings
+	final int TFTP_PORT = 4970;
+	final int BUF_SIZE = 516;
+	final int BLOCK_SIZE = BUF_SIZE - 4;
 
-	static final int MAX_TRANSFER_ATTEMPTS = 5; // TODO (small) rename? transfer, not transmit?
-	static final int TRANSFER_TIMEOUT = 3000;
+	final int MAX_TRANSFER_ATTEMPTS = 5;
+	final int TRANSFER_TIMEOUT = 3000;
 
-	static final String READ_DIR = "src/assignment3/server-files/"; //custom address at your computer
-	static final String WRITE_DIR = "src/assignment3/uploaded-files/"; //custom address at your computer
+	final String READ_DIR = "src/assignment3/server-files/"; //custom address at your computer
+	final String WRITE_DIR = "src/assignment3/uploaded-files/"; //custom address at your computer
 	
+	final double UPLOAD_MAXIMUM = 20 * Math.pow(1024, 2); // Max size allocated to upload folder (200 MB)
+	final double ALLOCATION_CONTROL_INTERVAL = 10 * Math.pow(1024, 2); // controls how often a directory space control is made during a PUT. (every 10 MB)
+
 	// OP codes
 	public static final short OP_RRQ = 1;
 	public static final short OP_WRQ = 2;
@@ -40,19 +40,6 @@ public class TFTPServer {
 	public static final short ERROR_TRANSFERID = 5;
 	public static final short ERROR_FILEEXISTS = 6;
 	public static final short ERROR_NOSUCHUSER = 7;
-
-
-	//TODO not sure if I'm gonna use this
-	private static final int MAX_USER_QUOTA = 200 * 1024^2;
-	private HashMap<InetSocketAddress, Integer> m = new HashMap<>();
-
-	void addToMap(int size, InetSocketAddress client) {
-		m.put(client, size);
-	}
-
-	boolean exceededQuota(InetSocketAddress client) {
-		return m.get(client) > MAX_USER_QUOTA;
-	}
 
 	public static void main(String[] args) {
 		if(args.length > 0) {
@@ -88,7 +75,7 @@ public class TFTPServer {
 					
 				int reqType = parseRQ(buf, requestedFile, mode);
 
-				new ServerThread(reqType, clientAddress, requestedFile, mode.toString()).start();
+				new ServerThread(this, reqType, clientAddress, requestedFile, mode.toString()).start();
 			}
 			catch(IOException e) {
 				System.err.println(e.getMessage());
@@ -124,7 +111,7 @@ public class TFTPServer {
 				mode.append((char) buf[i]);
 		}
 		// if(foundZeroByte != 2)
-		// 	throw new IllegalTFTPOperation();
+		// 	throw new IllegalTFTPOperation(); //TODO don't forget to control check the request somewhere else (don't remember if I did already)
 
 		return opCode;
 	}

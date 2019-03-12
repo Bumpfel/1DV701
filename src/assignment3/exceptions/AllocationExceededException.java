@@ -1,11 +1,11 @@
 package assignment3.exceptions;
 
 @SuppressWarnings("serial")
-public class TransferTimedOutException extends Exception {
+public class AllocationExceededException extends Exception {
 
     private String msg;
 
-    public TransferTimedOutException(String errMsg) {
+    public AllocationExceededException(String errMsg) {
         msg = errMsg;
     }
 
