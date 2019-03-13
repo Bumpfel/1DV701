@@ -3,14 +3,15 @@ package assignment3.exceptions;
 @SuppressWarnings("serial")
 public class AllocationExceededException extends Exception {
 
-    private String msg;
+    //TODO decide
+    // private String msg;
 
-    public AllocationExceededException(String errMsg) {
-        msg = errMsg;
-    }
+    // public AllocationExceededException(String errMsg) {
+    //     msg = errMsg;
+    // }
 
-    @Override
-    public String getMessage() {
-        return msg;
-    }
+    // @Override
+    // public String getMessage() {
+    //     return msg;
+    // }
 }

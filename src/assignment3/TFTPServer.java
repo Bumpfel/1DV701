@@ -10,18 +10,18 @@ import java.net.SocketException;
 //TODO find out the dealio with Mode octet. also check max filename size, or rather that the 0 byte is found at the end
 public class TFTPServer {
 
-	// Server Settings
+	// Server Settings (these should relly be program args if one wanted to make them dynamic)
 	final int TFTP_PORT = 4970;
-	final int BUF_SIZE = 516;
-	final int BLOCK_SIZE = BUF_SIZE - 4;
+	final int PACKET_SIZE = 516;
+	final int DATA_BLOCK_SIZE = PACKET_SIZE - 4;
 
 	final int MAX_TRANSFER_ATTEMPTS = 5;
 	final int TRANSFER_TIMEOUT = 3000;
 
-	final String READ_DIR = "src/assignment3/server-files/"; //custom address at your computer
+	final String READ_DIR = "src/assignment3/server-files/"; // custom address at your computer
 	final String WRITE_DIR = "src/assignment3/uploaded-files/"; //custom address at your computer
 	
-	final double UPLOAD_MAXIMUM = 20 * Math.pow(1024, 2); // Max size allocated to upload folder (200 MB)
+	final double UPLOAD_MAXIMUM = 200 * Math.pow(1024, 2); // Max size allocated to upload folder (200 MB)
 	final double ALLOCATION_CONTROL_INTERVAL = 10 * Math.pow(1024, 2); // controls how often a directory space control is made during a PUT. (every 10 MB)
 
 	// OP codes
@@ -56,7 +56,7 @@ public class TFTPServer {
 	}
 	
 	private void startServer() throws SocketException {
-		byte[] buf = new byte[BUF_SIZE];
+		byte[] buf = new byte[PACKET_SIZE];
 		
 		DatagramSocket socket = new DatagramSocket(TFTP_PORT);
 		System.out.printf("Listening at port %d for new requests\n", TFTP_PORT);
@@ -85,30 +85,30 @@ public class TFTPServer {
 	
 
 	/**
-	 * Parses the request in buf to retrieve the type of request and requestedFile'
-	 * Looks for two 0-bytes. The first separating the requested file and mode, and the other to mark the end of the request. Counts operation as illegal if not found
+	 * Parses the request in buf to retrieve the type of request and requestedFile
 	 * 
-	 * @param buf (received request)
-	 * @param requestedFile (name of file to read/write)
+	 * @param buffer (received request)
+	 * @param requestedFile - object to store parsed file name in (name of file to read/write from/to)
+	 * @param mode object to store request mode in
 	 * @return opcode (request type: RRQ or WRQ)
 	 */
-	private int parseRQ(byte[] buf, StringBuffer requestedFile, StringBuffer mode) {
-		int opCode = buf[0] + buf[1];
+	private int parseRQ(byte[] buffer, StringBuffer requestedFile, StringBuffer mode) throws ArrayIndexOutOfBoundsException {
+		int opCode = buffer[0] + buffer[1];
 
 		// if(opCode != TFTPServer.OP_RRQ && opCode != TFTPServer.OP_WRQ)
 		// 	throw new IllegalTFTPOperation();
 
 		int foundZeroByte = 0;
-		for(int i = 2; i < buf.length; i ++) {
-			if(buf[i] == 0) {
+		for(int i = 2; i < buffer.length; i ++) {
+			if(buffer[i] == 0) {
 				foundZeroByte ++;
 				if(foundZeroByte == 2)
 					break;
 			}
 			else if(foundZeroByte == 0)
-				requestedFile.append((char) buf[i]);
+				requestedFile.append((char) buffer[i]);
 			else if(foundZeroByte == 1)
-				mode.append((char) buf[i]);
+				mode.append((char) buffer[i]);
 		}
 		// if(foundZeroByte != 2)
 		// 	throw new IllegalTFTPOperation(); //TODO don't forget to control check the request somewhere else (don't remember if I did already)
@@ -119,11 +119,11 @@ public class TFTPServer {
 	/**
 	 * Reads the first block of data, i.e., the request for an action (read or write).
 	 * @param socket (socket to read from)
-	 * @param buf (where to store the read data)
+	 * @param buffer (where to store the read data)
 	 * @return socketAddress (the socket address of the client)
 	 */
-	private InetSocketAddress receiveFrom(DatagramSocket socket, byte[] buf) throws IOException {
-		DatagramPacket packet = new DatagramPacket(buf, buf.length);
+	private InetSocketAddress receiveFrom(DatagramSocket socket, byte[] buffer) throws IOException {
+		DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 		socket.receive(packet);
 
 		return new InetSocketAddress(packet.getAddress(), packet.getPort());

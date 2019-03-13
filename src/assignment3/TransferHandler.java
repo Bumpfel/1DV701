@@ -16,7 +16,7 @@ public class TransferHandler {
 	public boolean sendDataReceiveAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, UnknownTransferIDException {
 		int receivedBlock = 0, transferAttempt = 0;
 		
-		byte[] buf = new byte[server.BUF_SIZE];
+		byte[] buf = new byte[server.PACKET_SIZE];
 		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
 		ByteBuffer bb = ByteBuffer.wrap(buf);
 		do {
