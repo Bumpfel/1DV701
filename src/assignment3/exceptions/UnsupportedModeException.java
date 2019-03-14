@@ -1,5 +1,5 @@
 package assignment3.exceptions;
 
 @SuppressWarnings("serial")
-public class AllocationExceededException extends Exception {
+public class UnsupportedModeException extends Exception {
 }
