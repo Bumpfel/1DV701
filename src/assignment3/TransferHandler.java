@@ -24,13 +24,11 @@ class TransferHandler {
             transferAttempt ++;
             if(transferAttempt > server.MAX_TRANSFER_ATTEMPTS)
 				return false;
-			if(transferAttempt > 1)
-				System.err.println("Re-sending packet");
 			try {
+				doControls(dataPacket.getPort(), socket.getPort(), byteBuffer.getShort(0));
+
 				socket.send(dataPacket);
 				socket.receive(ackPacket);
-
-				doControls(dataPacket.getPort(), socket.getPort(), byteBuffer.getShort(0));
 
                 receivedBlock = byteBuffer.getShort(2);
 			}
@@ -47,7 +45,6 @@ class TransferHandler {
 	boolean receiveDataSendAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, ClientAbortedTransferException, UnknownTransferIDException {
 		
 		int transferAttempt = 0;
-		ByteBuffer ackBB = ByteBuffer.allocate(4);
 		ByteBuffer dataBB = ByteBuffer.wrap(dataPacket.getData());
 		short receivedBlock = -1, receivedOpCode = -1;
 		
@@ -64,13 +61,9 @@ class TransferHandler {
 				
 				doControls(dataPacket.getPort(), socket.getPort(), receivedOpCode);
 
-				ackBB.putShort(0, TFTPServer.OP_ACK);
-				ackBB.putShort(2, receivedBlock);
-			
-				DatagramPacket ackPacket = new DatagramPacket(ackBB.array(), ackBB.array().length);
-				
-				socket.send(ackPacket);
+				sendAck(socket, receivedBlock);
 
+				// re-receive if receivedBlock was not the expected (happens if client did not receive previously sent ack)
 				// prevents writing received data to file if received data was old
 				if(receivedBlock != expectedBlock)
 					continue;
@@ -78,14 +71,28 @@ class TransferHandler {
 				return true;
 			}
 			catch(SocketTimeoutException e) {
+				System.err.println("Attempt " + transferAttempt + ": data receive timed out");
 				System.err.println("Receive attempt timed out");
 			}
-			catch(IndexOutOfBoundsException e) { // TODO not sure if necessary. should only happen if client sends faulty packet or it becomes corrupted. or illegal request
-				System.out.println("Server error");
-				return false;
-			}
 		}
-    }
+	}
+	
+	private void sendAck(DatagramSocket socket, short block) throws IOException {
+		final int HEADER_LENGTH = 4;
+		ByteBuffer ackBB = ByteBuffer.allocate(HEADER_LENGTH);
+
+		ackBB.putShort(0, TFTPServer.OP_ACK);
+		ackBB.putShort(2, block);
+		
+		DatagramPacket ackPacket = new DatagramPacket(ackBB.array(), ackBB.array().length);
+				
+		socket.send(ackPacket);
+	}
+
+	void sendHandShake(DatagramSocket socket) throws IOException {
+		final short HANDSHAKE_BLOCK = 0;
+		sendAck(socket, HANDSHAKE_BLOCK);
+	}
 
 	private void doControls(int sourceTID, int destinationTID, short opCode) throws UnknownTransferIDException, ClientAbortedTransferException {
 		if(sourceTID != destinationTID)

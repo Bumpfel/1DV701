@@ -11,13 +11,15 @@ import java.net.PortUnreachableException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 
 import assignment3.exceptions.*;
 
 class RequestHandler {
 
 	/**
-	 * Parses the request in buf to retrieve the type of request and requestedFile
+	 * Parses the request in buf to retrieve the type of request, requestedFile and mode, and controls request validity
 	 * 
 	 * @param buf (received request)
 	 * @param requestedFile - object to store parsed file name in (name of file to read/write from/to)
@@ -35,22 +37,23 @@ class RequestHandler {
 
 		int foundZeroByte = 0;
 		for(int i = 2; i < buf.length; i ++) {
-			if(buf[i] == 0) {
+
+			if(buf[i] == 0) { // found 0-byte separator
 				foundZeroByte ++;
-				if(foundZeroByte == 2) {
-					if(!mode.toString().equals("octet")) 
+				if(foundZeroByte == 2) { // checks if two 0-bytes has been found (end of request reached)
+					if(!mode.toString().equals("octet")) // ...and if so that mode is octet
 						throw new UnsupportedModeException();
-					return opCode;
+					return opCode; // request parsed ok
 				}
 			}
-			else if(foundZeroByte == 0)
+
+			else if(foundZeroByte == 0) // byte is part of file name
 				requestedFile.append((char) buf[i]);
-			else if(foundZeroByte == 1)
+			else if(foundZeroByte == 1) // byte is part of mode
 				mode.append((char) buf[i]);
 		}
-		throw new IllegalTFTPOperationException();
+		throw new IllegalTFTPOperationException(); // did not find two 0-bytes
 	}
-
 
 	/**
 	 * Handles RRQ and WRQ requests 
@@ -60,11 +63,12 @@ class RequestHandler {
 	 * @param opCode (RRQ=1 or WRQ=2)
 	 * @throws AllocationExceededException if server upload directory space allocation is exceeded
 	 * @throws IOException
+	 * @throws PortUnreachableException if socket port is unreachable
 	 * @throws UnknownTransferIDException if received packet source id (TID) is not what expected 
 	 * @throws TransferTimedOutException if server failed to receive data or ack packet within the timeout value a certain amount of times, as specified in server settings
 	 */
 	void handleRQ(TFTPServer server, DatagramSocket socket, String requestedFile, int opCode) throws IOException, PortUnreachableException, UnknownTransferIDException, TransferTimedOutException, AllocationExceededException {
-		TransferHandler handler = new TransferHandler();
+		TransferHandler transferHandler = new TransferHandler();
 		final int HEADER_LENGTH = 4;
 		InetSocketAddress clientAddress = new InetSocketAddress(socket.getInetAddress(), socket.getPort());
         
@@ -96,7 +100,7 @@ class RequestHandler {
 					DatagramPacket packet = new DatagramPacket(byteBuffer.array(), bytesRead + HEADER_LENGTH);
 					
 					// send data and wait for acknowledgement
-					packetAcknowledged = handler.sendDataReceiveAck(server, packet, socket, block);
+					packetAcknowledged = transferHandler.sendDataReceiveAck(server, packet, socket, block);
 					
 					block ++;
 				}
@@ -120,40 +124,29 @@ class RequestHandler {
             if(newFile.exists())
                 throw new FileAlreadyExistsException("Write request from " + clientAddress.getHostName() + " denied: file exists");
             
-            checkDirSize(server, newFile, null);
+            controlDirSize(server, newFile, null);
 
-       		final short HANDSHAKE_BLOCK = 0;
-						
-			// "Handshake packet"
-			// TODO maybe separate "handshake" to its own method
-			ByteBuffer header = ByteBuffer.allocate(HEADER_LENGTH);
-			header.putShort(TFTPServer.OP_ACK);
-			header.putShort(HANDSHAKE_BLOCK);
-			
-			byte[] headerArr = header.array();
-			DatagramPacket handShakePacket = new DatagramPacket(headerArr, headerArr.length);
-			socket.send(handShakePacket);
+			transferHandler.sendHandShake(socket);
 
 			DatagramPacket receivePacket;
 			boolean packetAcknowledged;
 			byte[] buf = new byte[server.PACKET_SIZE];
 
-            short expectedBlock = 1;
-            long calc = 0;
-			// iterates once per packet
-			
 			try(FileOutputStream fos = new FileOutputStream(newFile)) {
+				short expectedBlock = 1;
+				long calc = 0;
+				// iterates once per packet
 				do {
 					packetAcknowledged = false;
 					receivePacket = new DatagramPacket(buf, buf.length);
 					
-					packetAcknowledged = handler.receiveDataSendAck(server, receivePacket, socket, expectedBlock ++);
+					packetAcknowledged = transferHandler.receiveDataSendAck(server, receivePacket, socket, expectedBlock ++);
 					
 					// checks used space every so often
 					calc += receivePacket.getLength() - HEADER_LENGTH;
 					if(calc / server.ALLOCATION_CONTROL_INTERVAL > 1) {
 						calc /= server.ALLOCATION_CONTROL_INTERVAL;
-						checkDirSize(server, newFile, fos);
+						controlDirSize(server, newFile, fos);
 					}
 
 					fos.write(receivePacket.getData(), HEADER_LENGTH, receivePacket.getLength() - HEADER_LENGTH);
@@ -180,7 +173,7 @@ class RequestHandler {
      */
     private String formatFileSize(long size) {
         String[] sizePrefix = { "", "K", "M", "G" };
-        DecimalFormat df = new DecimalFormat("#.#"); // one decimal
+        DecimalFormat df = new DecimalFormat("#.#", new DecimalFormatSymbols(Locale.ENGLISH)); // one decimal
         
         long temp = size;
         int divisions = 0;
@@ -189,17 +182,15 @@ class RequestHandler {
             divisions ++;
 
         double calc = size / Math.pow(1024, divisions);
-        return df.format(calc).replaceAll(",", ".")  + " " + sizePrefix[divisions];
+        return df.format(calc) + " " + sizePrefix[divisions];
     }
 
-    private void checkDirSize(TFTPServer server, File file, FileOutputStream fos) throws AllocationExceededException, IOException {
+    private void controlDirSize(TFTPServer server, File file, FileOutputStream fos) throws AllocationExceededException, IOException {
 		File uploadDirectory = new File(server.WRITE_DIR);
 		int dirSize = 0;
 
-		File[] files = uploadDirectory.listFiles();
-		for(File f : files)
+		for(File f : uploadDirectory.listFiles())
 			dirSize += f.length();
-		
 
         if(dirSize > server.UPLOAD_MAXIMUM) {
             if(fos != null)
@@ -207,5 +198,6 @@ class RequestHandler {
             file.delete();
             throw new AllocationExceededException();
         }
-    }
+	}
+	
 }
