@@ -8,29 +8,30 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 
 import assignment3.exceptions.ClientAbortedTransferException;
+import assignment3.exceptions.IllegalTFTPOperationException;
 import assignment3.exceptions.UnknownTransferIDException;
 
 class TransferHandler {
-
-    // Client GET
-	boolean sendDataReceiveAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, PortUnreachableException, ClientAbortedTransferException, UnknownTransferIDException {
+	private byte[] ackBuf = new byte[4];
+	private ByteBuffer ackBuffer = ByteBuffer.wrap(ackBuf);
+	
+	// Client GET
+	boolean sendDataReceiveAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, PortUnreachableException, ClientAbortedTransferException, IllegalTFTPOperationException, UnknownTransferIDException {
 		int transferAttempt = 0;
 		short receivedBlock = -1;
 		
-		byte[] buf = new byte[server.PACKET_SIZE];
-		DatagramPacket ackPacket = new DatagramPacket(buf, buf.length);
-		ByteBuffer byteBuffer = ByteBuffer.wrap(buf);
+		DatagramPacket ackPacket = new DatagramPacket(ackBuf, ackBuf.length);
 		do {
             transferAttempt ++;
             if(transferAttempt > server.MAX_TRANSFER_ATTEMPTS)
 				return false;
 			try {
-				doControls(dataPacket.getPort(), socket.getPort(), byteBuffer.getShort(0));
-
 				socket.send(dataPacket);
 				socket.receive(ackPacket);
 
-                receivedBlock = byteBuffer.getShort(2);
+				doControls(dataPacket.getPort(), socket.getPort(), ackBuffer.getShort(0), TFTPServer.OP_ACK);
+				
+                receivedBlock = ackBuffer.getShort(2);
 			}
 			catch(SocketTimeoutException e) {
 				System.err.println("Attempt " + transferAttempt + ": ack receive timed out");
@@ -42,7 +43,7 @@ class TransferHandler {
 	}
 	
 	// Client PUT
-	boolean receiveDataSendAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, ClientAbortedTransferException, UnknownTransferIDException {
+	boolean receiveDataSendAck(TFTPServer server, DatagramPacket dataPacket, DatagramSocket socket, short expectedBlock) throws IOException, ClientAbortedTransferException, IllegalTFTPOperationException, UnknownTransferIDException {
 		
 		int transferAttempt = 0;
 		ByteBuffer dataBB = ByteBuffer.wrap(dataPacket.getData());
@@ -53,13 +54,12 @@ class TransferHandler {
 			if(transferAttempt > server.MAX_TRANSFER_ATTEMPTS)
 				return false;
 			try {
-				//TODO (hard) times out if ack packet wasn't received by client and the client is waiting for an ack while server is waiting for data at the same time. test by disabling socket.send()
 				socket.receive(dataPacket);
 
 				receivedOpCode = dataBB.getShort(0);
 				receivedBlock = dataBB.getShort(2);
 				
-				doControls(dataPacket.getPort(), socket.getPort(), receivedOpCode);
+				doControls(dataPacket.getPort(), socket.getPort(), receivedOpCode, TFTPServer.OP_DAT);
 
 				sendAck(socket, receivedBlock);
 
@@ -78,13 +78,10 @@ class TransferHandler {
 	}
 	
 	private void sendAck(DatagramSocket socket, short block) throws IOException {
-		final int HEADER_LENGTH = 4;
-		ByteBuffer ackBB = ByteBuffer.allocate(HEADER_LENGTH);
-
-		ackBB.putShort(0, TFTPServer.OP_ACK);
-		ackBB.putShort(2, block);
+		ackBuffer.putShort(0, TFTPServer.OP_ACK);
+		ackBuffer.putShort(2, block);
 		
-		DatagramPacket ackPacket = new DatagramPacket(ackBB.array(), ackBB.array().length);
+		DatagramPacket ackPacket = new DatagramPacket(ackBuffer.array(), ackBuffer.array().length);
 				
 		socket.send(ackPacket);
 	}
@@ -94,10 +91,13 @@ class TransferHandler {
 		sendAck(socket, HANDSHAKE_BLOCK);
 	}
 
-	private void doControls(int sourceTID, int destinationTID, short opCode) throws UnknownTransferIDException, ClientAbortedTransferException {
+	private void doControls(int sourceTID, int destinationTID, short opCode, short expectedOpCode) throws IllegalTFTPOperationException, UnknownTransferIDException, ClientAbortedTransferException {
 		if(sourceTID != destinationTID)
 			throw new UnknownTransferIDException();
-
+		
+		if(opCode != expectedOpCode) //TODO Serverthread gives the wrong error msg "invalid request" for this throw
+			throw new IllegalTFTPOperationException();
+		
 		if(opCode == TFTPServer.OP_ERR)
 			throw new ClientAbortedTransferException();
 	}

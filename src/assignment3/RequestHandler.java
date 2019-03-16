@@ -34,7 +34,15 @@ class RequestHandler {
 
 		if(opCode != TFTPServer.OP_RRQ && opCode != TFTPServer.OP_WRQ)
 			throw new IllegalTFTPOperationException();
+			
+		//TEST
+		String temp = buf.toString();
+		String[] tempArr = temp.split("0");
 
+		System.out.println("0s found: " + tempArr.length);
+		// System.out.println("string: " + tempArr[1]);
+		
+		//TODO could be improved...
 		int foundZeroByte = 0;
 		for(int i = 2; i < buf.length; i ++) {
 
@@ -67,7 +75,7 @@ class RequestHandler {
 	 * @throws UnknownTransferIDException if received packet source id (TID) is not what expected 
 	 * @throws TransferTimedOutException if server failed to receive data or ack packet within the timeout value a certain amount of times, as specified in server settings
 	 */
-	void handleRQ(TFTPServer server, DatagramSocket socket, String requestedFile, int opCode) throws IOException, PortUnreachableException, UnknownTransferIDException, TransferTimedOutException, AllocationExceededException {
+	void handleRQ(TFTPServer server, DatagramSocket socket, String requestedFile, int opCode) throws IOException, PortUnreachableException, UnknownTransferIDException, TransferTimedOutException, IllegalTFTPOperationException, AllocationExceededException {
 		TransferHandler transferHandler = new TransferHandler();
 		final int HEADER_LENGTH = 4;
 		InetSocketAddress clientAddress = new InetSocketAddress(socket.getInetAddress(), socket.getPort());
@@ -98,8 +106,8 @@ class RequestHandler {
 					
 					byteBuffer.put(buf);
 					DatagramPacket packet = new DatagramPacket(byteBuffer.array(), bytesRead + HEADER_LENGTH);
-					
 					// send data and wait for acknowledgement
+					
 					packetAcknowledged = transferHandler.sendDataReceiveAck(server, packet, socket, block);
 					
 					block ++;
