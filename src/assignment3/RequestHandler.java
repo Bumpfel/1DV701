@@ -207,7 +207,7 @@ class RequestHandler {
 		for(File f : uploadDirectory.listFiles())
 			dirSize += f.length();
 
-        if(dirSize > TFTPServer.UPLOAD_MAXIMUM) {
+        if(dirSize > TFTPServer.UPLOAD_DIR_MAX_SIZE) {
             if(fos != null)
                 fos.close();
             file.delete();

@@ -19,8 +19,8 @@ public class TFTPServer {
 	static final String READ_DIR = "src/assignment3/server-files/"; // custom address at your computer
 	static final String WRITE_DIR = "src/assignment3/uploaded-files/"; //custom address at your computer
 	
-	static final double UPLOAD_MAXIMUM = toMB(200); // Max size allocated to upload folder
-	static final double ALLOCATION_CONTROL_INTERVAL = toMB(10); // controls how often a directory space control is made during a PUT
+	static final double UPLOAD_DIR_MAX_SIZE = toMB(100); // Max size allocated to upload folder
+	static final double ALLOCATION_CONTROL_INTERVAL = toMB(1); // controls how often a directory space control is made during a PUT
 
 	// OP codes
 	public static final short OP_RRQ = 1;
