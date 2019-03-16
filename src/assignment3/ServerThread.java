@@ -13,7 +13,6 @@ class ServerThread extends Thread {
     
     private RequestHandler requestHandler = new RequestHandler();
     private ErrorHandler errorHandler = new ErrorHandler();
-    private TFTPServer server;
     private DatagramSocket socket;
     private InetSocketAddress clientAddress;
     private int requestType;
@@ -21,13 +20,12 @@ class ServerThread extends Thread {
     private StringBuffer mode = new StringBuffer();
     private byte[] unparsedRequest;
     
-    ServerThread(TFTPServer tftpServer, byte[] rawRequest, InetSocketAddress newClientAddress) {
-        server = tftpServer;
+    ServerThread(byte[] rawRequest, InetSocketAddress newClientAddress) {
         clientAddress = newClientAddress;
-        unparsedRequest = rawRequest; //TODO urgh
+        unparsedRequest = rawRequest;
         try {
             socket = new DatagramSocket(0);
-            socket.setSoTimeout(server.TRANSFER_TIMEOUT);
+            socket.setSoTimeout(TFTPServer.TRANSFER_TIMEOUT);
             socket.connect(clientAddress);
         }
         catch(SocketException e) {
@@ -42,17 +40,17 @@ class ServerThread extends Thread {
             // Read request
             if (requestType == TFTPServer.OP_RRQ) {
                 System.out.println("Read request for " + requestedFile + " from " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
-                requestedFile.insert(0, server.READ_DIR);
-                requestHandler.handleRQ(server, socket, requestedFile.toString(), TFTPServer.OP_RRQ);
+                requestedFile.insert(0, TFTPServer.READ_DIR);
+                requestHandler.handleRRQ(socket, requestedFile.toString());
             }
             // Write request
             else if(requestType == TFTPServer.OP_WRQ) {
                 System.out.println("Write request for " + requestedFile + " from " + clientAddress.getHostName() + " using port " + clientAddress.getPort());
-                requestedFile.insert(0, server.WRITE_DIR);
-                requestHandler.handleRQ(server, socket, requestedFile.toString(), TFTPServer.OP_WRQ);
+                requestedFile.insert(0, TFTPServer.WRITE_DIR);
+                requestHandler.handleWRQ(socket, requestedFile.toString());
             }
             else {
-                throw new IllegalTFTPOperationException();
+                throw new IllegalTFTPOperationException("Invalid request from " + clientAddress.getHostName());
             }
         }
         // Error code 0
@@ -66,10 +64,14 @@ class ServerThread extends Thread {
             errorHandler.sendError(socket, TFTPServer.ERROR_UNDEFINED, "Transfer timed out");
         }
         // Error code 1
-        //TODO not sure if it should send an access violation error if this exception is caused by a read access error
-        catch(FileNotFoundException e) { // can also be caused by no read access
+        catch(FileNotFoundException e) { // can also be caused by no read access in some cases
             System.err.println("Read request from " +  clientAddress.getHostName() + " denied: file not found or file read access denied");
             errorHandler.sendError(socket, TFTPServer.ERROR_FILENOTFOUND, "Requested file not found");
+        }
+        // Error code 2
+        catch(AccessViolationException e) {
+            System.err.println("File access violation");
+            errorHandler.sendError(socket, TFTPServer.ERROR_ACCESS, "Access violation");
         }
         // Error code 3
         catch(AllocationExceededException e) {
@@ -77,8 +79,8 @@ class ServerThread extends Thread {
             errorHandler.sendError(socket, TFTPServer.ERROR_DISKFULL, "Disk full or allocation exceeded");
         }
         // Error code 4
-        catch(IllegalTFTPOperationException e) {
-            System.err.println("Invalid request from " + clientAddress.getHostName());
+        catch(IllegalTFTPOperationException | ArrayIndexOutOfBoundsException e) {
+            System.err.println(e.getMessage());
             errorHandler.sendError(socket, TFTPServer.ERROR_ILLEGAL, "Illegal TFTP operation");
         }
         // Error code 4

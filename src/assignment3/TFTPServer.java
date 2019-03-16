@@ -8,19 +8,19 @@ import java.net.SocketException;
 
 public class TFTPServer {
 
-	// Server Settings (these should really be program args or read from a settings file if one wanted to make them dynamic)
-	final int TFTP_PORT = 4970;
-	final int PACKET_SIZE = 516;
-	final int PAYLOAD_SIZE = PACKET_SIZE - 4;
+	// Server Settings
+	static final int TFTP_PORT = 4970;
+	static final int PAYLOAD_SIZE = 512;
+	static final int PACKET_SIZE = PAYLOAD_SIZE + 4;
 
-	final int MAX_TRANSFER_ATTEMPTS = 5;
-	final int TRANSFER_TIMEOUT = 3000;
+	static final int MAX_TRANSFER_ATTEMPTS = 5;
+	static final int TRANSFER_TIMEOUT = 3000;
 
-	final String READ_DIR = "src/assignment3/server-files/"; // custom address at your computer
-	final String WRITE_DIR = "src/assignment3/uploaded-files/"; //custom address at your computer
+	static final String READ_DIR = "src/assignment3/server-files/"; // custom address at your computer
+	static final String WRITE_DIR = "src/assignment3/uploaded-files/"; //custom address at your computer
 	
-	final double UPLOAD_MAXIMUM = toMB(200); // Max size allocated to upload folder
-	final double ALLOCATION_CONTROL_INTERVAL = toMB(10); // controls how often a directory space control is made during a PUT
+	static final double UPLOAD_MAXIMUM = toMB(200); // Max size allocated to upload folder
+	static final double ALLOCATION_CONTROL_INTERVAL = toMB(10); // controls how often a directory space control is made during a PUT
 
 	// OP codes
 	public static final short OP_RRQ = 1;
@@ -68,7 +68,7 @@ public class TFTPServer {
 				if(clientAddress == null)
 					continue;
 
-				new ServerThread(this, buf, clientAddress).start();
+				new ServerThread(buf, clientAddress).start();
 			}
 			catch(IOException e) {
 				System.err.println(e.getMessage());
@@ -90,7 +90,7 @@ public class TFTPServer {
 	}
 
 	// converts to megabyte
-	private double toMB(long bytes) {
+	private static double toMB(long bytes) {
 		return bytes * Math.pow(1024, 2);
 	}
 	
