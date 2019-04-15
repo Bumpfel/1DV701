@@ -22,6 +22,7 @@ class TransferHandler {
 		int transferAttempt = 0;
 		short receivedBlock = -1;
 		
+		// iterates if the transfer attempt failed (up to a number of times specified in server settings)
 		do {
             transferAttempt ++;
             if(transferAttempt > TFTPServer.MAX_TRANSFER_ATTEMPTS)
@@ -51,6 +52,7 @@ class TransferHandler {
 		ByteBuffer dataBB = ByteBuffer.wrap(dataPacket.getData());
 		short receivedBlock = -1, receivedOpCode = -1;
 		
+		// iterates if receive attempt timed out
 		while(true) {
 			transferAttempt ++;
 			if(transferAttempt > TFTPServer.MAX_TRANSFER_ATTEMPTS)
@@ -90,7 +92,8 @@ class TransferHandler {
 		ackBuffer.putShort(0, TFTPServer.OP_ACK);
 		ackBuffer.putShort(2, block);
 		
-		DatagramPacket ackPacket = new DatagramPacket(ackBuffer.array(), ackBuffer.array().length);
+		// DatagramPacket ackPacket = new DatagramPacket(ackBuffer.array(), ackBuffer.array().length); // TODO remove if set works
+		ackPacket.setData(ackBuffer.array(), 0, ackBuffer.array().length);
 				
 		socket.send(ackPacket);
 	}

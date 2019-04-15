@@ -85,8 +85,8 @@ class RequestHandler {
 		int bytesRead;
 
 		try (FileInputStream fis = new FileInputStream(newFile)) {
-			// iterates once per packet
 			DatagramPacket dataPacket = new DatagramPacket(buf, buf.length);
+			// iterates once per packet
 			do {
 				// read to buffer if file input stream stream contains data 
 				if(fis.available() > 0)
